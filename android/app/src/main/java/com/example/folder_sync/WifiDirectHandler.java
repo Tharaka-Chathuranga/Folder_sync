@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiManager;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
@@ -84,7 +85,44 @@ public class WifiDirectHandler implements MethodChannel.MethodCallHandler, Event
     
     private void initialize(Result result) {
         try {
+            // Check if Wi-Fi Direct is supported
+            if (manager == null) {
+                Log.e(TAG, "Wi-Fi P2P is not supported on this device");
+                result.error("P2P_UNSUPPORTED", "Wi-Fi Direct is not supported on this device", null);
+                return;
+            }
+            
+            // Check for required permissions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Check location permission which is required for Wi-Fi Direct
+                int locationPermission = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION);
+                if (locationPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Location permission not granted");
+                    result.error("PERMISSION_DENIED", "Location permission is required for Wi-Fi Direct", null);
+                    return;
+                }
+                
+                // For Android 13+, check for NEARBY_WIFI_DEVICES permission
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    int nearbyDevicesPermission = context.checkSelfPermission(android.Manifest.permission.NEARBY_WIFI_DEVICES);
+                    if (nearbyDevicesPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        Log.e(TAG, "NEARBY_WIFI_DEVICES permission not granted");
+                        result.error("PERMISSION_DENIED", "NEARBY_WIFI_DEVICES permission is required for Wi-Fi Direct on Android 13+", null);
+                        return;
+                    }
+                }
+            }
+            
+            // Register broadcast receiver
             context.registerReceiver(receiver, intentFilter);
+            
+            // Enable Wi-Fi if it's not already enabled
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager != null && !wifiManager.isWifiEnabled()) {
+                Log.d(TAG, "Enabling Wi-Fi");
+                wifiManager.setWifiEnabled(true);
+            }
+            
             result.success(true);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize Wi-Fi Direct: " + e.getMessage());
@@ -93,19 +131,72 @@ public class WifiDirectHandler implements MethodChannel.MethodCallHandler, Event
     }
     
     private void startDiscovery(Result result) {
-        manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
-            @Override
-            public void onSuccess() {
-                Log.d(TAG, "Discovery started successfully");
-                result.success(true);
+        try {
+            // Check for required permissions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Check location permission which is required for Wi-Fi Direct
+                int locationPermission = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION);
+                if (locationPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Location permission not granted");
+                    result.error("PERMISSION_DENIED", "Location permission is required for Wi-Fi Direct discovery", null);
+                    return;
+                }
+                
+                // For Android 13+, check for NEARBY_WIFI_DEVICES permission
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    int nearbyDevicesPermission = context.checkSelfPermission(android.Manifest.permission.NEARBY_WIFI_DEVICES);
+                    if (nearbyDevicesPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        Log.e(TAG, "NEARBY_WIFI_DEVICES permission not granted");
+                        result.error("PERMISSION_DENIED", "NEARBY_WIFI_DEVICES permission is required for Wi-Fi Direct on Android 13+", null);
+                        return;
+                    }
+                }
             }
             
-            @Override
-            public void onFailure(int reason) {
-                Log.e(TAG, "Discovery failed with reason: " + reason);
-                result.error("DISCOVERY_FAILED", "Failed to start discovery", String.valueOf(reason));
+            // Check if Wi-Fi is enabled
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager != null && !wifiManager.isWifiEnabled()) {
+                Log.e(TAG, "Wi-Fi is not enabled");
+                result.error("WIFI_DISABLED", "Wi-Fi is not enabled", null);
+                return;
             }
-        });
+            
+            manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    Log.d(TAG, "Discovery started successfully");
+                    result.success(true);
+                }
+                
+                @Override
+                public void onFailure(int reason) {
+                    String errorMessage;
+                    switch (reason) {
+                        case WifiP2pManager.P2P_UNSUPPORTED:
+                            errorMessage = "Wi-Fi Direct is not supported on this device";
+                            break;
+                        case WifiP2pManager.BUSY:
+                            errorMessage = "System is busy, try again later";
+                            break;
+                        case WifiP2pManager.ERROR:
+                            errorMessage = "Internal error";
+                            break;
+                        default:
+                            errorMessage = "Unknown error";
+                            break;
+                    }
+                    
+                    Log.e(TAG, "Discovery failed with reason: " + reason + " - " + errorMessage);
+                    result.error("DISCOVERY_FAILED", errorMessage, String.valueOf(reason));
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e(TAG, "Security exception during discovery: " + e.getMessage());
+            result.error("PERMISSION_DENIED", "Required permissions not granted", e.getMessage());
+        } catch (Exception e) {
+            Log.e(TAG, "Exception during discovery: " + e.getMessage());
+            result.error("DISCOVERY_FAILED", "Failed to start discovery", e.getMessage());
+        }
     }
     
     private void stopDiscovery(Result result) {
@@ -123,20 +214,65 @@ public class WifiDirectHandler implements MethodChannel.MethodCallHandler, Event
     }
     
     private void connectToDevice(String deviceAddress, Result result) {
-        WifiP2pConfig config = new WifiP2pConfig();
-        config.deviceAddress = deviceAddress;
-        
-        manager.connect(channel, config, new WifiP2pManager.ActionListener() {
-            @Override
-            public void onSuccess() {
-                result.success(true);
+        try {
+            // Check for required permissions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Check location permission which is required for Wi-Fi Direct
+                int locationPermission = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION);
+                if (locationPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Location permission not granted");
+                    result.error("PERMISSION_DENIED", "Location permission is required for Wi-Fi Direct connection", null);
+                    return;
+                }
+                
+                // For Android 13+, check for NEARBY_WIFI_DEVICES permission
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    int nearbyDevicesPermission = context.checkSelfPermission(android.Manifest.permission.NEARBY_WIFI_DEVICES);
+                    if (nearbyDevicesPermission != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        Log.e(TAG, "NEARBY_WIFI_DEVICES permission not granted");
+                        result.error("PERMISSION_DENIED", "NEARBY_WIFI_DEVICES permission is required for Wi-Fi Direct on Android 13+", null);
+                        return;
+                    }
+                }
             }
             
-            @Override
-            public void onFailure(int reason) {
-                result.error("CONNECTION_FAILED", "Failed to connect to device", String.valueOf(reason));
-            }
-        });
+            WifiP2pConfig config = new WifiP2pConfig();
+            config.deviceAddress = deviceAddress;
+            
+            manager.connect(channel, config, new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    result.success(true);
+                }
+                
+                @Override
+                public void onFailure(int reason) {
+                    String errorMessage;
+                    switch (reason) {
+                        case WifiP2pManager.P2P_UNSUPPORTED:
+                            errorMessage = "Wi-Fi Direct is not supported on this device";
+                            break;
+                        case WifiP2pManager.BUSY:
+                            errorMessage = "System is busy, try again later";
+                            break;
+                        case WifiP2pManager.ERROR:
+                            errorMessage = "Internal error";
+                            break;
+                        default:
+                            errorMessage = "Unknown error";
+                            break;
+                    }
+                    
+                    result.error("CONNECTION_FAILED", errorMessage, String.valueOf(reason));
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e(TAG, "Security exception during connection: " + e.getMessage());
+            result.error("PERMISSION_DENIED", "Required permissions not granted", e.getMessage());
+        } catch (Exception e) {
+            Log.e(TAG, "Exception during connection: " + e.getMessage());
+            result.error("CONNECTION_FAILED", "Failed to connect to device", e.getMessage());
+        }
     }
     
     private void disconnect(Result result) {

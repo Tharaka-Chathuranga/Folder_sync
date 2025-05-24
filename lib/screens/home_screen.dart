@@ -7,6 +7,7 @@ import '../providers/device_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/device_info.dart';
 import 'sync_screen.dart';
+import 'wifi_direct_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -92,6 +93,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
+  // Navigate to Wi-Fi Direct screen
+  void _navigateToWifiDirectScreen() {
+    Navigator.pushNamed(context, '/wifi_direct');
+  }
+  
   // Start scanning for devices
   Future<void> _startScan() async {
     final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
@@ -103,9 +109,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final success = await deviceProvider.startDiscovery();
     
     if (!success) {
+      String errorMessage = deviceProvider.lastError ?? 
+          'Failed to start scanning. Please check that WiFi is enabled and all permissions are granted';
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to start scanning. Please check that WiFi is enabled and all permissions are granted'),
+        SnackBar(
+          content: Text(errorMessage),
           duration: Duration(seconds: 5),
         ),
       );
@@ -140,9 +149,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final success = await deviceProvider.startAdvertising(_deviceNameController.text);
     
     if (!success) {
+      String errorMessage = deviceProvider.lastError ?? 
+          'Failed to start advertising. Please check that WiFi is enabled and all permissions are granted';
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to start advertising. Please check that WiFi is enabled and all permissions are granted'),
+        SnackBar(
+          content: Text(errorMessage),
           duration: Duration(seconds: 5),
         ),
       );
@@ -292,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.wifi),
             onPressed: _openWifiSettings,
-            tooltip: 'Open WiFi Settings',
+            tooltip: 'WiFi Settings',
           ),
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -321,29 +333,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: TextField(
               controller: _deviceNameController,
               decoration: const InputDecoration(
-                labelText: 'Device Name',
+                labelText: 'Your Device Name',
                 border: OutlineInputBorder(),
               ),
             ),
           ),
-          
-          // Advertise button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: Icon(_isAdvertising ? Icons.stop : Icons.broadcast_on_personal),
-                    label: Text(_isAdvertising ? 'Stop Advertising' : 'Advertise Device'),
-                    onPressed: _isAdvertising ? _stopAdvertising : _startAdvertising,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 8),
           
           // Directory selection
           Padding(
@@ -351,47 +345,57 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Select Folder to Sync'),
-                    onPressed: _selectDirectory,
+                  child: Text(
+                    _selectedDirectory != null
+                        ? 'Selected: $_selectedDirectory'
+                        : 'No directory selected',
+                    style: TextStyle(
+                      color: _selectedDirectory != null ? Colors.black : Colors.grey,
+                    ),
                   ),
+                ),
+                ElevatedButton(
+                  onPressed: _selectDirectory,
+                  child: const Text('Select Directory'),
                 ),
               ],
             ),
           ),
           
-          if (_selectedDirectory != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.folder, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _selectedDirectory!,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          const SizedBox(height: 16),
           
-          // Scan controls
+          // Action buttons
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: Icon(_isScanning ? Icons.stop : Icons.search),
-                    label: Text(_isScanning ? 'Stop Scanning' : 'Scan for Devices'),
-                    onPressed: _isScanning ? _stopScan : _startScan,
-                  ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.search),
+                  label: Text(_isScanning ? 'Stop Scanning' : 'Scan for Devices'),
+                  onPressed: _isScanning ? _stopScan : _startScan,
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.broadcast_on_personal),
+                  label: Text(_isAdvertising ? 'Stop Advertising' : 'Advertise'),
+                  onPressed: _isAdvertising ? _stopAdvertising : _startAdvertising,
                 ),
               ],
+            ),
+          ),
+          
+          // Wi-Fi Direct button
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.wifi_tethering),
+              label: const Text('Use Wi-Fi Direct'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              onPressed: _navigateToWifiDirectScreen,
             ),
           ),
           

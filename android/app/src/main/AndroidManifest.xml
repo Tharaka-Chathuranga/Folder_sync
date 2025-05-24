@@ -6,21 +6,13 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     
-    <!-- Wi-Fi Direct Permissions -->
-    <!-- For Android 13+ -->
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" 
-                     android:usesPermissionFlags="neverForLocation" />
-    
-    <!-- Location permissions (required for Wi-Fi Direct on Android <13) -->
+    <!-- Location permissions (required for Wi-Fi Direct) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     
-    <!-- Bluetooth Permissions -->
+    <!-- Bluetooth Permissions (basic) -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     
     <!-- Storage Permissions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
@@ -29,10 +21,17 @@
     <!-- Battery Optimization -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
+    <!-- Android 13+ Wi-Fi Direct Permission -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
+    
+    <!-- Explicitly declare that this app uses Wi-Fi P2P API -->
+    <uses-feature android:name="android.hardware.wifi.direct" android:required="true" />
+    
     <application
         android:label="folder_sync"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
