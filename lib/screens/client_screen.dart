@@ -514,7 +514,37 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
     });
     
     final p2pSyncProvider = Provider.of<P2PSyncProvider>(context, listen: false);
-    final success = await p2pSyncProvider.connectWithCredentials(ssid, psk);
+    
+    // Show progress dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Connecting to $ssid...'),
+              const SizedBox(height: 8),
+              const Text(
+                'This may take up to 2 minutes',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Use retry logic for better reliability
+    final success = await p2pSyncProvider.connectWithCredentialsRetry(ssid, psk);
+    
+    // Close progress dialog
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
     
     setState(() {
       _isConnecting = false;
@@ -524,7 +554,8 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
       // Check if this was a WiFi-related error
       final errorMessage = p2pSyncProvider.errorMessage ?? 'Connection failed';
       if (errorMessage.toLowerCase().contains('wifi') || 
-          errorMessage.toLowerCase().contains('network')) {
+          errorMessage.toLowerCase().contains('network') ||
+          errorMessage.toLowerCase().contains('timeout')) {
         _showNetworkErrorDialog(errorMessage);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -534,6 +565,14 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
     } else if (success) {
       // Refresh WiFi status after successful connection
       _checkWiFiStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully connected to $ssid'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
   
@@ -570,23 +609,56 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
   }
   
   void _showNetworkErrorDialog(String errorMessage) {
+    List<String> troubleshootingSteps = [];
+    
+    if (errorMessage.toLowerCase().contains('timeout')) {
+      troubleshootingSteps = [
+        '1. Ensure the host device is nearby (within 10 meters)',
+        '2. Check that the host is still broadcasting the hotspot',
+        '3. Verify the SSID and password are correct',
+        '4. Try moving closer to the host device',
+        '5. Make sure there are no WiFi interference issues',
+      ];
+    } else if (errorMessage.toLowerCase().contains('wifi')) {
+      troubleshootingSteps = [
+        '1. Enable WiFi on your device',
+        '2. Check that WiFi permissions are granted',
+        '3. Try turning WiFi off and on again',
+        '4. Ensure location services are enabled',
+        '5. Restart the app if needed',
+      ];
+    } else {
+      troubleshootingSteps = [
+        '1. Make sure WiFi is enabled on your device',
+        '2. Check that you\'re in range of the host device',
+        '3. Verify the SSID and password are correct',
+        '4. Try refreshing and connecting again',
+        '5. Restart both devices if the issue persists',
+      ];
+    }
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Connection Failed'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Failed to connect: $errorMessage'),
-            const SizedBox(height: 16),
-            const Text('Troubleshooting steps:'),
-            const SizedBox(height: 8),
-            const Text('1. Make sure WiFi is enabled on your device'),
-            const Text('2. Check that you\'re in range of the host device'),
-            const Text('3. Verify the SSID and password are correct'),
-            const Text('4. Try refreshing and connecting again'),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Error: $errorMessage'),
+              const SizedBox(height: 16),
+              const Text(
+                'Troubleshooting steps:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...troubleshootingSteps.map((step) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(step),
+              )),
+            ],
+          ),
         ),
         actions: [
           TextButton(

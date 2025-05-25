@@ -129,22 +129,56 @@ class P2PSyncProvider with ChangeNotifier {
   Future<void> checkAndEnableServices() async {
     final p2pInterface = _host ?? FlutterP2pHost();
     
-    // Wi-Fi
-    if (!await p2pInterface.checkWifiEnabled()) {
-      final status = await p2pInterface.enableWifiServices();
-      debugPrint("Wi-Fi enabled: $status");
-    }
-    
-    // Location (often needed for scanning)
-    if (!await p2pInterface.checkLocationEnabled()) {
-      final status = await p2pInterface.enableLocationServices();
-      debugPrint("Location enabled: $status");
-    }
-    
-    // Bluetooth (if using BLE features)
-    if (!await p2pInterface.checkBluetoothEnabled()) {
-      final status = await p2pInterface.enableBluetoothServices();
-      debugPrint("Bluetooth enabled: $status");
+    try {
+      // Wi-Fi - Check and enable with retry
+      bool wifiEnabled = await p2pInterface.checkWifiEnabled();
+      if (!wifiEnabled) {
+        debugPrint("WiFi not enabled, attempting to enable...");
+        final status = await p2pInterface.enableWifiServices();
+        debugPrint("Wi-Fi enable attempt result: $status");
+        
+        // Wait and check again
+        await Future.delayed(const Duration(seconds: 2));
+        wifiEnabled = await p2pInterface.checkWifiEnabled();
+        if (!wifiEnabled) {
+          debugPrint("WARNING: WiFi still not enabled after enable attempt");
+        }
+      }
+      
+      // Location (often needed for scanning)
+      bool locationEnabled = await p2pInterface.checkLocationEnabled();
+      if (!locationEnabled) {
+        debugPrint("Location not enabled, attempting to enable...");
+        final status = await p2pInterface.enableLocationServices();
+        debugPrint("Location enable attempt result: $status");
+        
+        // Wait and check again
+        await Future.delayed(const Duration(seconds: 1));
+        locationEnabled = await p2pInterface.checkLocationEnabled();
+        if (!locationEnabled) {
+          debugPrint("WARNING: Location still not enabled after enable attempt");
+        }
+      }
+      
+      // Bluetooth (if using BLE features)
+      bool bluetoothEnabled = await p2pInterface.checkBluetoothEnabled();
+      if (!bluetoothEnabled) {
+        debugPrint("Bluetooth not enabled, attempting to enable...");
+        final status = await p2pInterface.enableBluetoothServices();
+        debugPrint("Bluetooth enable attempt result: $status");
+        
+        // Wait and check again
+        await Future.delayed(const Duration(seconds: 1));
+        bluetoothEnabled = await p2pInterface.checkBluetoothEnabled();
+        if (!bluetoothEnabled) {
+          debugPrint("WARNING: Bluetooth still not enabled after enable attempt");
+        }
+      }
+      
+      debugPrint("Services status - WiFi: $wifiEnabled, Location: $locationEnabled, Bluetooth: $bluetoothEnabled");
+    } catch (e) {
+      debugPrint("Error checking/enabling services: $e");
+      throw Exception("Failed to enable required services: $e");
     }
   }
   
@@ -423,6 +457,27 @@ class P2PSyncProvider with ChangeNotifier {
       }
       return false;
     }
+  }
+  
+  // Connect using credentials with retry logic
+  Future<bool> connectWithCredentialsRetry(String ssid, String psk, {int maxRetries = 2}) async {
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      debugPrint("Connection attempt $attempt/$maxRetries to $ssid");
+      
+      final success = await connectWithCredentials(ssid, psk);
+      if (success) {
+        return true;
+      }
+      
+      if (attempt < maxRetries) {
+        debugPrint("Connection attempt $attempt failed, waiting before retry...");
+        _setStatus(SyncStatus.idle);
+        await Future.delayed(const Duration(seconds: 3));
+      }
+    }
+    
+    _setError('Failed to connect to $ssid after $maxRetries attempts. Please check host availability and credentials.');
+    return false;
   }
   
   // Disconnect
