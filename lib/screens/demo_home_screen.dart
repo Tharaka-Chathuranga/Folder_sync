@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'improved_host_screen.dart';
 import 'improved_client_screen.dart';
+import 'files_library_screen.dart';
 
 class DemoHomeScreen extends StatefulWidget {
   const DemoHomeScreen({super.key});
@@ -192,6 +193,59 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                                 ),
                                 Text(
                                   'Connect to host & receive files',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Files Library Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 70,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          elevation: 8,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const FilesLibraryScreen(),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.folder_open, size: 28),
+                            const SizedBox(width: 16),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'FILES LIBRARY',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'View & manage downloaded files',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.normal,
