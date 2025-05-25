@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app_settings/app_settings.dart';
 import '../providers/wifi_direct_provider.dart';
-import '../services/wifi_direct_service.dart';
 import 'file_transfer_screen.dart';
 
 class WifiDirectScreen extends StatefulWidget {

@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'models/device_info.dart';
-import 'providers/device_provider.dart';
-import 'providers/sync_provider.dart';
-import 'providers/wifi_direct_provider.dart';
 import 'screens/home_screen.dart';
-import 'screens/wifi_direct_screen.dart';
-import 'services/device_discovery_service.dart';
-import 'services/file_service.dart';
-import 'services/sync_service.dart';
+import 'providers/p2p_sync_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,37 +14,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Create services
-    final fileService = FileService();
-    final deviceService = DeviceDiscoveryService();
-    final syncService = SyncService(deviceService, fileService);
-    
-    return MultiProvider(
-      providers: [
-        // Device provider
-        ChangeNotifierProvider(
-          create: (_) => DeviceProvider(deviceService),
-        ),
-        // Sync provider
-        ChangeNotifierProvider(
-          create: (_) => SyncProvider(syncService, fileService),
-        ),
-        // Wi-Fi Direct provider
-        ChangeNotifierProvider(
-          create: (_) => WifiDirectProvider(),
-        ),
-      ],
+    return ChangeNotifierProvider(
+      create: (_) => P2PSyncProvider(),
       child: MaterialApp(
         title: 'Folder Sync',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
-        routes: {
-          '/': (context) => const HomeScreen(),
-          '/wifi_direct': (context) => const WifiDirectScreen(),
-        },
-        initialRoute: '/',
+        home: const HomeScreen(),
       ),
     );
   }

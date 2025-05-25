@@ -2,464 +2,249 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/device_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/device_info.dart';
 import 'sync_screen.dart';
 import 'wifi_direct_screen.dart';
+import '../providers/p2p_sync_provider.dart';
+import 'host_screen.dart';
+import 'client_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  bool _isScanning = false;
-  bool _isAdvertising = false;
-  String? _selectedDirectory;
-  DeviceInfo? _selectedDevice;
-  final TextEditingController _deviceNameController = TextEditingController();
-  
-  @override
-  void initState() {
-    super.initState();
-    _deviceNameController.text = 'My Device';
-    _initializePermissions();
-  }
-  
-  @override
-  void dispose() {
-    _deviceNameController.dispose();
-    super.dispose();
-  }
-  
-  // Initialize required permissions
-  Future<void> _initializePermissions() async {
-    final syncProvider = Provider.of<SyncProvider>(context, listen: false);
-    await syncProvider.requestPermissions();
-  }
-  
-  // Select a folder to sync
-  Future<void> _selectDirectory() async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+  Widget build(BuildContext context) {
+    final p2pSyncProvider = Provider.of<P2PSyncProvider>(context, listen: false);
     
-    if (selectedDirectory != null) {
-      setState(() {
-        _selectedDirectory = selectedDirectory;
-      });
-    }
-  }
-  
-  // Show troubleshooting dialog when discovery fails
-  void _showTroubleshootingDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Connection Troubleshooting'),
-        content: SingleChildScrollView(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Folder Sync'),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text('Please check the following:'),
-              SizedBox(height: 8),
-              Text('• WiFi is turned ON on both devices'),
-              Text('• Both devices are on the same WiFi network'),
-              Text('• All required permissions are granted'),
-              Text('• Bluetooth is enabled (recommended)'),
-              Text('• Neither device is in battery saver mode'),
-              SizedBox(height: 16),
-              Text('You can tap the WiFi icon in the top bar to open WiFi settings.'),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Folder Sync',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Sync files between devices using Wi-Fi Direct',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 50),
+              _buildConnectionOption(
+                context,
+                'Start as Host',
+                'Create a Wi-Fi Direct group and allow other devices to connect',
+                Icons.wifi_tethering,
+                Colors.blue,
+                () async {
+                  if (context.mounted) {
+                    await _startAsHost(context, p2pSyncProvider);
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
+              _buildConnectionOption(
+                context,
+                'Connect as Client',
+                'Scan for and connect to a host device',
+                Icons.wifi_find,
+                Colors.green,
+                () async {
+                  await p2pSyncProvider.initialize();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ClientScreen()),
+                  );
+                },
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _openWifiSettings();
-            },
-            child: const Text('Open WiFi Settings'),
-          ),
-        ],
       ),
     );
   }
   
-  // Navigate to Wi-Fi Direct screen
-  void _navigateToWifiDirectScreen() {
-    Navigator.pushNamed(context, '/wifi_direct');
-  }
-  
-  // Start scanning for devices
-  Future<void> _startScan() async {
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    setState(() {
-      _isScanning = true;
-    });
-    
-    final success = await deviceProvider.startDiscovery();
-    
-    if (!success) {
-      String errorMessage = deviceProvider.lastError ?? 
-          'Failed to start scanning. Please check that WiFi is enabled and all permissions are granted';
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          duration: Duration(seconds: 5),
+  Widget _buildConnectionOption(
+    BuildContext context,
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.5)),
         ),
-      );
-      
-      _showTroubleshootingDialog();
-      
-      setState(() {
-        _isScanning = false;
-      });
-    }
-  }
-  
-  // Stop scanning for devices
-  Future<void> _stopScan() async {
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    await deviceProvider.stopDiscovery();
-    
-    setState(() {
-      _isScanning = false;
-    });
-  }
-  
-  // Start advertising this device
-  Future<void> _startAdvertising() async {
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    setState(() {
-      _isAdvertising = true;
-    });
-    
-    final success = await deviceProvider.startAdvertising(_deviceNameController.text);
-    
-    if (!success) {
-      String errorMessage = deviceProvider.lastError ?? 
-          'Failed to start advertising. Please check that WiFi is enabled and all permissions are granted';
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          duration: Duration(seconds: 5),
-        ),
-      );
-      
-      _showTroubleshootingDialog();
-      
-      setState(() {
-        _isAdvertising = false;
-      });
-    }
-  }
-  
-  // Stop advertising this device
-  Future<void> _stopAdvertising() async {
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    await deviceProvider.stopAdvertising();
-    
-    setState(() {
-      _isAdvertising = false;
-    });
-  }
-  
-  // Connect to a device
-  Future<void> _connectToDevice(DeviceInfo device) async {
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    setState(() {
-      _selectedDevice = device;
-    });
-    
-    final success = await deviceProvider.connectToDevice(device.id);
-    
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to connect to ${device.name}')),
-      );
-      
-      setState(() {
-        _selectedDevice = null;
-      });
-    } else {
-      // Connection successful, navigate to sync screen
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SyncScreen(
-              deviceInfo: device,
-              sourcePath: _selectedDirectory!,
-            ),
-          ),
-        ).then((_) {
-          // Disconnect when returning from sync screen
-          deviceProvider.disconnect();
-          setState(() {
-            _selectedDevice = null;
-          });
-        });
-      }
-    }
-  }
-  
-  void _openWifiSettings() {
-    AppSettings.openAppSettings(type: AppSettingsType.wifi);
-  }
-  
-  // Run connection diagnostics 
-  Future<void> _runConnectionDiagnostic() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        title: Text('Checking Connection...'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Testing network connectivity...'),
+            Icon(
+              icon,
+              size: 40,
+              color: color,
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: color,
+            ),
           ],
         ),
       ),
     );
+  }
 
-    // Get device provider
-    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
-    
-    // Add short delay for UI
-    await Future.delayed(const Duration(seconds: 1));
-    
-    // Check results and show diagnostic information
-    Navigator.pop(context); // Close progress dialog
-    
+  Future<void> _startAsHost(BuildContext context, P2PSyncProvider p2pSyncProvider) async {
+    try {
+      // Step 1: Check if location services are enabled
+      final locationServiceStatus = await Permission.location.serviceStatus;
+      if (!locationServiceStatus.isEnabled) {
+        if (context.mounted) {
+          _showLocationRequiredDialog(context);
+        }
+        return;
+      }
+
+      // Step 2: Request location permission
+      final locationStatus = await Permission.location.request();
+      if (!locationStatus.isGranted) {
+        if (context.mounted) {
+          _showPermissionDeniedDialog(context, 'Location permission is required for Wi-Fi Direct');
+        }
+        return;
+      }
+
+      // Step 3: Request nearby WiFi devices permission (Android 13+)
+      final nearbyWifiStatus = await Permission.nearbyWifiDevices.request();
+      if (nearbyWifiStatus.isDenied && nearbyWifiStatus != PermissionStatus.denied) {
+        if (context.mounted) {
+          _showPermissionDeniedDialog(context, 'Nearby WiFi devices permission is required for Android 13+');
+        }
+        return;
+      }
+
+      // Step 4: Initialize P2P service
+      await p2pSyncProvider.initialize();
+
+      // Step 5: Start as host
+      final ok = await p2pSyncProvider.startAsHost();
+      if (ok) {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HostScreen()),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to start host. Please check permissions and try again.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting host: $e'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showLocationRequiredDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Connection Diagnostics'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Device name: ${_deviceNameController.text}'),
-              const SizedBox(height: 16),
-              const Text('Troubleshooting tips:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('1. Ensure both devices are on the same WiFi network'),
-              const Text('2. Try bringing devices closer together'),
-              const Text('3. Restart the app on both devices'),
-              const Text('4. Make sure Bluetooth is enabled if available'),
-              const Text('5. Temporarily disable mobile data to ensure WiFi is used'),
-              const SizedBox(height: 16),
-              const Text('Advanced tips:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('• Some Huawei devices may have compatibility issues'),
-              const Text('• Battery optimization can interfere with discovery'),
-              const Text('• Try connecting to a different WiFi network'),
-            ],
-          ),
+        title: const Text('Location Services Required'),
+        content: const Text(
+          'Wi-Fi Direct requires location services to be enabled. Please enable location services in your device settings.',
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _openWifiSettings();
+              AppSettings.openAppSettings(type: AppSettingsType.location);
             },
-            child: const Text('Open WiFi Settings'),
+            child: const Text('Open Settings'),
           ),
         ],
       ),
     );
   }
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Folder Sync'),
+
+  void _showPermissionDeniedDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Permission Required'),
+        content: Text(message),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.wifi),
-            onPressed: _openWifiSettings,
-            tooltip: 'WiFi Settings',
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
+          TextButton(
             onPressed: () {
-              // Show about dialog
-              showAboutDialog(
-                context: context,
-                applicationName: 'Folder Sync',
-                applicationVersion: '1.0.0',
-                applicationLegalese: '© 2023 MobileX Team',
-                children: [
-                  const Text(
-                    'Synchronize folder contents between mobile devices over Wi-Fi.',
-                  ),
-                ],
-              );
+              Navigator.pop(context);
+              openAppSettings();
             },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Device name input
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _deviceNameController,
-              decoration: const InputDecoration(
-                labelText: 'Your Device Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          
-          // Directory selection
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedDirectory != null
-                        ? 'Selected: $_selectedDirectory'
-                        : 'No directory selected',
-                    style: TextStyle(
-                      color: _selectedDirectory != null ? Colors.black : Colors.grey,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _selectDirectory,
-                  child: const Text('Select Directory'),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Action buttons
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.search),
-                  label: Text(_isScanning ? 'Stop Scanning' : 'Scan for Devices'),
-                  onPressed: _isScanning ? _stopScan : _startScan,
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.broadcast_on_personal),
-                  label: Text(_isAdvertising ? 'Stop Advertising' : 'Advertise'),
-                  onPressed: _isAdvertising ? _stopAdvertising : _startAdvertising,
-                ),
-              ],
-            ),
-          ),
-          
-          // Wi-Fi Direct button
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.wifi_tethering),
-              label: const Text('Use Wi-Fi Direct'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              onPressed: _navigateToWifiDirectScreen,
-            ),
-          ),
-          
-          // Diagnostics button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: TextButton.icon(
-              icon: const Icon(Icons.help_outline),
-              label: const Text('Connection Troubleshooting'),
-              onPressed: _runConnectionDiagnostic,
-            ),
-          ),
-          
-          // Available devices list
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                Icon(Icons.devices, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Available Devices',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: Consumer<DeviceProvider>(
-              builder: (context, deviceProvider, child) {
-                final devices = deviceProvider.discoveredDevices;
-                
-                if (devices.isEmpty) {
-                  return const Center(
-                    child: Text('No devices found'),
-                  );
-                }
-                
-                return ListView.builder(
-                  itemCount: devices.length,
-                  itemBuilder: (context, index) {
-                    final device = devices[index];
-                    
-                    return ListTile(
-                      leading: const Icon(Icons.smartphone),
-                      title: Text(device.name),
-                      subtitle: Text(device.id),
-                      trailing: _selectedDevice?.id == device.id
-                          ? const CircularProgressIndicator()
-                          : IconButton(
-                              icon: const Icon(Icons.link),
-                              onPressed: _selectedDirectory == null
-                                  ? null
-                                  : () => _connectToDevice(device),
-                            ),
-                    );
-                  },
-                );
-              },
-            ),
+            child: const Text('Open Settings'),
           ),
         ],
       ),

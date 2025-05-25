@@ -10,9 +10,9 @@ class FileTransferScreen extends StatefulWidget {
   final WifiDirectDevice connectedDevice;
   
   const FileTransferScreen({
-    Key? key,
+    super.key,
     required this.connectedDevice,
-  }) : super(key: key);
+  });
 
   @override
   State<FileTransferScreen> createState() => _FileTransferScreenState();
