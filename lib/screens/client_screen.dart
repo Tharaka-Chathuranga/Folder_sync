@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../providers/p2p_sync_provider.dart';
 import '../widgets/connection_status_widget.dart';
 import '../widgets/file_transfer_widget.dart';
@@ -20,11 +21,14 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
   bool _isConnecting = false;
   final TextEditingController _ssidController = TextEditingController();
   final TextEditingController _pskController = TextEditingController();
+  // String? _authorizationStatus; 
+  Map<String, dynamic>? _wifiStatus; 
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkWiFiStatus(); // Check WiFi status on init
   }
 
   @override
@@ -40,6 +44,7 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && controller != null) {
       controller!.resumeCamera();
+      _checkWiFiStatus(); // Recheck WiFi status when app resumes
     }
   }
 
@@ -60,10 +65,10 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ConnectionStatusWidget(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ConnectionStatusWidget(),
               const SizedBox(height: 20),
               
               // Connection Status Card
@@ -113,116 +118,188 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
               
-              // Client controls
+              // WiFi Status Card
+              if (!p2pSyncProvider.isConnected && _wifiStatus != null)
+                Card(
+                  color: (_wifiStatus!['hasWiFi'] == true)
+                      ? Colors.green.withOpacity(0.1)
+                      : (_wifiStatus!['needsWiFiEnable'] == true)
+                          ? Colors.red.withOpacity(0.1)
+                          : Colors.orange.withOpacity(0.1),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          (_wifiStatus!['hasWiFi'] == true)
+                              ? Icons.wifi
+                              : (_wifiStatus!['needsWiFiEnable'] == true)
+                                  ? Icons.wifi_off
+                                  : Icons.wifi_find,
+                          color: (_wifiStatus!['hasWiFi'] == true)
+                              ? Colors.green
+                              : (_wifiStatus!['needsWiFiEnable'] == true)
+                                  ? Colors.red
+                                  : Colors.orange,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (_wifiStatus!['hasWiFi'] == true)
+                                    ? 'WiFi Connected'
+                                    : (_wifiStatus!['needsWiFiEnable'] == true)
+                                        ? 'WiFi Needs to be Enabled'
+                                        : 'Network Available',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                'Status: ${_wifiStatus!['status']}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (_wifiStatus!['needsWiFiEnable'] == true)
+                                const Text(
+                                  'Please enable WiFi to connect to hosts',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (_wifiStatus!['needsWiFiEnable'] == true)
+                          TextButton(
+                            onPressed: () {
+                              _showWiFiEnableDialog();
+                            },
+                            child: const Text('Help'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 20),
+            
+            // Client controls
               if (!p2pSyncProvider.isConnected)
-                Column(
-                  children: [
-                    // Scan button
-                    ElevatedButton.icon(
-                      onPressed: _isScanning ? null : _startScan,
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: Text(_isScanning ? 'Scanning...' : 'Scan QR Code'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
+              Column(
+                children: [
+                  // Scan button
+                  ElevatedButton.icon(
+                    onPressed: _isScanning ? null : _startScan,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: Text(_isScanning ? 'Scanning...' : 'Scan QR Code'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
                     ),
-                    
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  const Text('OR', textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  
+                  // Manual connection
+                  const Text(
+                    'Enter Connection Details Manually:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _ssidController,
+                    decoration: const InputDecoration(
+                      labelText: 'SSID',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _pskController,
+                    decoration: const InputDecoration(
+                      labelText: 'PSK (Password)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _isConnecting ? null : _connectManually,
+                    icon: _isConnecting 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_lock),
+                    label: Text(_isConnecting ? 'Connecting...' : 'Connect'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  const Text('OR', textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  
+                  // Scan for hosts
+                  ElevatedButton.icon(
+                    onPressed: _isScanning ? null : _scanForHosts,
+                    icon: _isScanning 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search),
+                    label: Text(_isScanning ? 'Scanning...' : 'Scan for Hosts'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                  ),
+                  
+                  // Available hosts
+                  if (p2pSyncProvider.availableHosts.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    const Text('OR', textAlign: TextAlign.center),
-                    const SizedBox(height: 20),
-                    
-                    // Manual connection
                     const Text(
-                      'Enter Connection Details Manually:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _ssidController,
-                      decoration: const InputDecoration(
-                        labelText: 'SSID',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _pskController,
-                      decoration: const InputDecoration(
-                        labelText: 'PSK (Password)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton.icon(
-                      onPressed: _isConnecting ? null : _connectManually,
-                      icon: _isConnecting 
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.wifi_lock),
-                      label: Text(_isConnecting ? 'Connecting...' : 'Connect'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 20),
-                    const Text('OR', textAlign: TextAlign.center),
-                    const SizedBox(height: 20),
-                    
-                    // Scan for hosts
-                    ElevatedButton.icon(
-                      onPressed: _isScanning ? null : _scanForHosts,
-                      icon: _isScanning 
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.search),
-                      label: Text(_isScanning ? 'Scanning...' : 'Scan for Hosts'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                    ),
-                    
-                    // Available hosts
-                    if (p2pSyncProvider.availableHosts.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Available Hosts:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ...p2pSyncProvider.availableHosts.map((host) => ListTile(
-                        leading: const Icon(Icons.wifi_tethering),
-                        title: Text(host['name'] ?? 'Unknown Host'),
-                        subtitle: Text('ID: ${host['id']}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.link),
-                          onPressed: () => _connectToHost(host['id']),
-                        ),
-                      )),
-                    ],
-                  ],
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Network Information
-                    const Text(
-                      'Network Information:',
+                      'Available Hosts:',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                      ...p2pSyncProvider.availableHosts.map((host) => ListTile(
+                          leading: const Icon(Icons.wifi_tethering),
+                          title: Text(host['name'] ?? 'Unknown Host'),
+                          subtitle: Text('ID: ${host['id']}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.link),
+                            onPressed: () => _connectToHost(host['id']),
+                          ),
+                      )),
+                  ],
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                    // Network Information
+                  const Text(
+                      'Network Information:',
+                    style: TextStyle(
+                        fontSize: 16,
+                      fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -237,21 +314,21 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                             Text('Connection Status: ${p2pSyncProvider.status.name}'),
                           ],
                         ),
-                      ),
                     ),
-                    const SizedBox(height: 20),
-                    
+                  ),
+                  const SizedBox(height: 20),
+                  
                     // Other Connected Devices
-                    const Text(
+                  const Text(
                       'Other Connected Devices:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 10),
-                    
-                    if (p2pSyncProvider.connectedDevices.isEmpty)
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  if (p2pSyncProvider.connectedDevices.isEmpty)
                       const Card(
                         child: Padding(
                           padding: EdgeInsets.all(16),
@@ -271,10 +348,10 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.send),
+                              icon: const Icon(Icons.send),
                                   tooltip: 'Send File',
-                                  onPressed: () => _sendFileToClient(clientId),
-                                ),
+                              onPressed: () => _sendFileToClient(clientId),
+                            ),
                                 IconButton(
                                   icon: const Icon(Icons.message),
                                   tooltip: 'Send Message',
@@ -283,7 +360,7 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                               ],
                             ),
                           ),
-                        );
+                          );
                       }),
                       
                     const SizedBox(height: 20),
@@ -299,8 +376,8 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                     const SizedBox(height: 10),
                     const FileTransferWidget(),
                     
-                    const SizedBox(height: 20),
-                    
+                  const SizedBox(height: 20),
+                  
                     // Action Buttons
                     const Text(
                       'Actions:',
@@ -310,18 +387,18 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                       ),
                     ),
                     const SizedBox(height: 10),
-                    
+                  
                     // Send file to all devices
-                    ElevatedButton.icon(
-                      onPressed: _sendFileToAll,
-                      icon: const Icon(Icons.upload_file),
+                  ElevatedButton.icon(
+                    onPressed: _sendFileToAll,
+                    icon: const Icon(Icons.upload_file),
                       label: const Text('Send File to All Devices'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
                     ),
-                    
-                    const SizedBox(height: 10),
+                  ),
+                  
+                  const SizedBox(height: 10),
                     
                     // Send message to all
                     ElevatedButton.icon(
@@ -336,21 +413,21 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
                     ),
                     
                     const SizedBox(height: 20),
-                    
-                    // Disconnect button
-                    ElevatedButton.icon(
-                      onPressed: _disconnect,
-                      icon: const Icon(Icons.close),
-                      label: const Text('Disconnect'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
+                  
+                  // Disconnect button
+                  ElevatedButton.icon(
+                    onPressed: _disconnect,
+                    icon: const Icon(Icons.close),
+                    label: const Text('Disconnect'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
                     ),
-                  ],
-                ),
-            ],
+                  ),
+                ],
+              ),
+          ],
           ),
         ),
       ),
@@ -424,22 +501,180 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
   }
   
   Future<void> _connectWithCredentials(String ssid, String psk) async {
+    // Check WiFi status first
+    await _checkWiFiStatus();
+    
+    if (_wifiStatus != null && _wifiStatus!['needsWiFiEnable'] == true) {
+      final shouldContinue = await _showWiFiWarningDialog();
+      if (!shouldContinue) return;
+    }
+    
     setState(() {
       _isConnecting = true;
     });
     
     final p2pSyncProvider = Provider.of<P2PSyncProvider>(context, listen: false);
-    final success = await p2pSyncProvider.connectWithCredentials(ssid, psk);
+    
+    // Show progress dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Connecting to $ssid...'),
+              const SizedBox(height: 8),
+              const Text(
+                'This may take up to 2 minutes',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Use retry logic for better reliability
+    final success = await p2pSyncProvider.connectWithCredentialsRetry(ssid, psk);
+    
+    // Close progress dialog
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
     
     setState(() {
       _isConnecting = false;
     });
     
     if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(p2pSyncProvider.errorMessage ?? 'Connection failed')),
-      );
+      // Check if this was a WiFi-related error
+      final errorMessage = p2pSyncProvider.errorMessage ?? 'Connection failed';
+      if (errorMessage.toLowerCase().contains('wifi') || 
+          errorMessage.toLowerCase().contains('network') ||
+          errorMessage.toLowerCase().contains('timeout')) {
+        _showNetworkErrorDialog(errorMessage);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    } else if (success) {
+      // Refresh WiFi status after successful connection
+      _checkWiFiStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully connected to $ssid'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
+  }
+  
+  Future<bool> _showWiFiWarningDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('WiFi Not Connected'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your device doesn\'t appear to be connected to WiFi.'),
+            SizedBox(height: 10),
+            Text('To connect to a host device:'),
+            SizedBox(height: 8),
+            Text('1. Enable WiFi in your device settings'),
+            Text('2. You may need to connect to the host\'s WiFi network manually'),
+            Text('3. Then try connecting again'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue Anyway'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+  
+  void _showNetworkErrorDialog(String errorMessage) {
+    List<String> troubleshootingSteps = [];
+    
+    if (errorMessage.toLowerCase().contains('timeout')) {
+      troubleshootingSteps = [
+        '1. Ensure the host device is nearby (within 10 meters)',
+        '2. Check that the host is still broadcasting the hotspot',
+        '3. Verify the SSID and password are correct',
+        '4. Try moving closer to the host device',
+        '5. Make sure there are no WiFi interference issues',
+      ];
+    } else if (errorMessage.toLowerCase().contains('wifi')) {
+      troubleshootingSteps = [
+        '1. Enable WiFi on your device',
+        '2. Check that WiFi permissions are granted',
+        '3. Try turning WiFi off and on again',
+        '4. Ensure location services are enabled',
+        '5. Restart the app if needed',
+      ];
+    } else {
+      troubleshootingSteps = [
+        '1. Make sure WiFi is enabled on your device',
+        '2. Check that you\'re in range of the host device',
+        '3. Verify the SSID and password are correct',
+        '4. Try refreshing and connecting again',
+        '5. Restart both devices if the issue persists',
+      ];
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Connection Failed'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Error: $errorMessage'),
+              const SizedBox(height: 16),
+              const Text(
+                'Troubleshooting steps:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...troubleshootingSteps.map((step) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(step),
+              )),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _checkWiFiStatus(); // Refresh WiFi status
+            },
+            child: const Text('Refresh'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
   
   Future<void> _scanForHosts() async {
@@ -556,6 +791,57 @@ class _ClientScreenState extends State<ClientScreen> with WidgetsBindingObserver
           ),
         ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Check WiFi status
+  Future<void> _checkWiFiStatus() async {
+    try {
+      final p2pSyncProvider = Provider.of<P2PSyncProvider>(context, listen: false);
+      final wifiStatus = await p2pSyncProvider.getWiFiStatus();
+      if (mounted) {
+        setState(() {
+          _wifiStatus = wifiStatus;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking WiFi status: $e');
+    }
+  }
+
+  void _showWiFiEnableDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable WiFi'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('To connect to host devices, you need to enable WiFi:'),
+            SizedBox(height: 10),
+            Text('1. Open your device\'s Settings'),
+            Text('2. Go to WiFi settings'),
+            Text('3. Turn on WiFi'),
+            Text('4. Return to this app and try connecting'),
+            SizedBox(height: 10),
+            Text('Note: The app will connect to the host\'s WiFi Direct network.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _checkWiFiStatus(); // Refresh status when user returns
+            },
+            child: const Text('Refresh'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),

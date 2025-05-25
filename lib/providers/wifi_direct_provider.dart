@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/wifi_direct_service.dart';
 
@@ -29,6 +30,22 @@ class WifiDirectProvider extends ChangeNotifier {
     _initialize();
   }
   
+  // Manual permission check using platform channel as fallback
+  Future<bool> _checkNearbyWifiDevicesManually() async {
+    if (!Platform.isAndroid) return true;
+    
+    try {
+      const platform = MethodChannel('com.example.folder_sync/permissions');
+      final bool granted = await platform.invokeMethod('checkNearbyWifiDevices');
+      print('Manual nearbyWifiDevices check result: $granted');
+      return granted;
+    } catch (e) {
+      print('Manual permission check failed: $e');
+      // If manual check fails, assume it's granted (for older Android versions)
+      return true;
+    }
+  }
+  
   Future<void> _initialize() async {
     await requestPermissions();
     final result = await _service.initialize();
@@ -53,6 +70,22 @@ class WifiDirectProvider extends ChangeNotifier {
     // Bluetooth permissions based on Android version
     if (Platform.isAndroid) {
       try {
+        // Try to add nearby devices permission for Android 13+
+        try {
+          print('Attempting to add nearbyWifiDevices permission...');
+          final nearbyWifiStatus = await Permission.nearbyWifiDevices.status;
+          print('nearbyWifiDevices permission status check: ${nearbyWifiStatus.name}');
+          permissions.add(Permission.nearbyWifiDevices);
+          print('Successfully added nearbyWifiDevices permission to request list');
+        } catch (e) {
+          print('nearbyWifiDevices permission not available or error: $e');
+          // On older versions or if permission is not available, ensure location permission is requested
+          if (!permissions.contains(Permission.location)) {
+            permissions.add(Permission.location);
+          }
+        }
+        
+        // Bluetooth permissions
         int androidVersion = int.parse(Platform.operatingSystemVersion.split(' ').last);
         if (androidVersion >= 12) {
           // For Android 12+ (API 31+)
@@ -63,15 +96,6 @@ class WifiDirectProvider extends ChangeNotifier {
           // For older Android versions
           permissions.add(Permission.bluetooth);
         }
-        
-        // Try to add nearby devices permission for Android 13+
-        if (androidVersion >= 13) {
-          try {
-            permissions.add(Permission.nearbyWifiDevices);
-          } catch (e) {
-            print('nearbyWifiDevices permission not available: $e');
-          }
-        }
       } catch (e) {
         // If we can't determine the version, add all Bluetooth permissions
         permissions.add(Permission.bluetooth);
@@ -79,23 +103,57 @@ class WifiDirectProvider extends ChangeNotifier {
         permissions.add(Permission.bluetoothConnect);
         permissions.add(Permission.bluetoothAdvertise);
         
-        // Try to add nearby devices permission
-        try {
-          permissions.add(Permission.nearbyWifiDevices);
-        } catch (e) {
-          print('nearbyWifiDevices permission not available: $e');
+        // Also ensure location permission for fallback
+        if (!permissions.contains(Permission.location)) {
+          permissions.add(Permission.location);
         }
       }
     }
     
-    // Request all permissions
+    print('=== REQUESTING PERMISSIONS ===');
+    print('Total permissions to request: ${permissions.length}');
+    
+    // Request permissions individually to better handle errors
+    bool hasAllCritical = true;
+    Map<Permission, PermissionStatus> results = {};
+    
     for (var permission in permissions) {
       try {
+        print('Requesting ${permission.toString()}...');
         final status = await permission.request();
+        results[permission] = status;
         print('${permission.toString()}: ${status.toString()}');
+        
+        // Check if critical permissions are denied
+        if (permission == Permission.location || 
+            permission == Permission.nearbyWifiDevices) {
+          if (!status.isGranted) {
+            hasAllCritical = false;
+            print('CRITICAL: ${permission.toString()} was denied');
+          }
+        }
       } catch (e) {
         print('Error requesting ${permission.toString()}: $e');
+        results[permission] = PermissionStatus.denied;
+        
+        // If this is a critical permission, mark as failed
+        if (permission == Permission.location || 
+            permission == Permission.nearbyWifiDevices) {
+          hasAllCritical = false;
+        }
       }
+    }
+    
+    // Special handling for nearbyWifiDevices permission
+    bool nearbyWifiGranted = false;
+    try {
+      final nearbyWifiStatus = await Permission.nearbyWifiDevices.status;
+      nearbyWifiGranted = nearbyWifiStatus.isGranted;
+      print('Final nearbyWifiDevices status: ${nearbyWifiStatus.name}');
+    } catch (e) {
+      print('Could not check nearbyWifiDevices final status: $e');
+      // On older Android versions, this is expected
+      nearbyWifiGranted = true; // Consider it "granted" if not available
     }
     
     // Check if critical permissions are granted
@@ -103,11 +161,18 @@ class WifiDirectProvider extends ChangeNotifier {
     final storageStatus = await Permission.storage.status;
     
     // Log all permission statuses
+    print('=== FINAL PERMISSION STATUS ===');
     print('Location permission: ${locationStatus.toString()}');
     print('Storage permission: ${storageStatus.toString()}');
+    print('Nearby WiFi devices: ${nearbyWifiGranted ? "granted" : "denied"}');
     
-    // Return true if critical permissions are granted
-    return locationStatus.isGranted && storageStatus.isGranted;
+    // Return true if we have the minimum required permissions
+    bool hasMinimumPermissions = locationStatus.isGranted && storageStatus.isGranted;
+    
+    print('Has minimum required permissions: $hasMinimumPermissions');
+    print('Has all critical permissions: $hasAllCritical');
+    
+    return hasMinimumPermissions;
   }
   
   Future<bool> startDiscovery() async {
