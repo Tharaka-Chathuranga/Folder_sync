@@ -3,8 +3,13 @@ import 'dart:io';
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_p2p_connection/flutter_p2p_connection.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'files_library_screen.dart';
+import 'file_viewer_screen.dart';
 
 class ImprovedClientScreen extends StatefulWidget {
   const ImprovedClientScreen({super.key});
@@ -381,6 +386,18 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FilesLibraryScreen(),
+                ),
+              );
+            },
+            tooltip: "Files Library",
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_applications),
             onPressed: _showPermissionsDialog,
             tooltip: "Setup & Permissions",
@@ -694,9 +711,13 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
           onPressed: () async {
             _showSnackBar("Downloading ${file.info.name}...", Colors.blue);
             try {
+              // Get app's downloads directory
+              final downloadsDir = await getApplicationDocumentsDirectory();
+              final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
-                '/storage/emulated/0/Download/',
+                syncDownloadsPath,
               );
               _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
                           downloaded ? Colors.green : Colors.red);
@@ -713,9 +734,46 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
           child: CircularProgressIndicator(strokeWidth: 2),
         );
       case ReceivableFileState.completed:
-        return Icon(Icons.check_circle, color: Colors.green.shade600);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.visibility, color: Colors.blue),
+              onPressed: () async {
+                await _viewDownloadedFile(file);
+              },
+              tooltip: 'View File',
+            ),
+            Icon(Icons.check_circle, color: Colors.green.shade600),
+          ],
+        );
       default:
         return Icon(Icons.error, color: Colors.red.shade600);
+    }
+  }
+
+  Future<void> _viewDownloadedFile(ReceivableFileInfo file) async {
+    try {
+      final downloadsDir = await getApplicationDocumentsDirectory();
+      final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+      final filePath = path.join(syncDownloadsPath, file.info.name);
+      final downloadedFile = File(filePath);
+      
+      if (await downloadedFile.exists()) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FileViewerScreen(
+              file: downloadedFile,
+              fileName: file.info.name,
+            ),
+          ),
+        );
+      } else {
+        _showSnackBar("File not found. Please download it first.", Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar("Error opening file: $e", Colors.red);
     }
   }
 }

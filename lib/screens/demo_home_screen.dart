@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'improved_host_screen.dart';
 import 'improved_client_screen.dart';
+import 'files_library_screen.dart';
 
 class DemoHomeScreen extends StatefulWidget {
   const DemoHomeScreen({super.key});
@@ -203,36 +204,89 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 16),
+
+                    // Files Library Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 70,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          elevation: 8,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const FilesLibraryScreen(),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.folder_open, size: 28),
+                            const SizedBox(width: 16),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'FILES LIBRARY',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'View & manage downloaded files',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
 
                 const SizedBox(height: 20),
 
                 // Info Section
-                Card(
-                  elevation: 2,
-                  color: Colors.orange.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.orange.shade700),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'This version uses flutter_p2p_connection plugin directly to avoid permission issues.',
-                            style: TextStyle(
-                              color: Colors.orange.shade700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                // Card(
+                //   elevation: 2,
+                //   color: Colors.orange.shade50,
+                //   child: Padding(
+                //     padding: const EdgeInsets.all(16.0),
+                //     child: Row(
+                //       children: [
+                //         Icon(Icons.info_outline, color: Colors.orange.shade700),
+                //         const SizedBox(width: 12),
+                //         Expanded(
+                //           child: Text(
+                //             'This version uses flutter_p2p_connection plugin directly to avoid permission issues.',
+                //             style: TextStyle(
+                //               color: Colors.orange.shade700,
+                //               fontSize: 14,
+                //             ),
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //   ),
+                // ),
                 
-                const SizedBox(height: 20),
+                // const SizedBox(height: 20),
               ],
             ),
           ),
