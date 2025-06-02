@@ -89,59 +89,171 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.security, color: Colors.orange),
-                    title: const Text("Request Permissions"),
-                    subtitle: const Text("Grant storage, location & WiFi permissions"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _requestAllPermissions();
-                      },
-                      child: const Text("Grant"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.security, color: Colors.orange),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Request Permissions",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Grant storage, location & WiFi permissions",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _requestAllPermissions();
+                            },
+                            child: const Text("Grant Permissions"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.wifi, color: Colors.blue),
-                    title: const Text("Enable Wi-Fi"),
-                    subtitle: const Text("Required for connecting to hosts"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableWifi();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.wifi, color: Colors.blue),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Wi-Fi",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for connecting to hosts",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableWifi();
+                            },
+                            child: const Text("Enable Wi-Fi"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.location_on, color: Colors.green),
-                    title: const Text("Enable Location"),
-                    subtitle: const Text("Required for WiFi Direct"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableLocation();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Colors.green),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Location",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for WiFi Direct",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableLocation();
+                            },
+                            child: const Text("Enable Location"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.bluetooth, color: Colors.indigo),
-                    title: const Text("Enable Bluetooth"),
-                    subtitle: const Text("Required for device discovery"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableBluetooth();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.bluetooth, color: Colors.indigo),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Bluetooth",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for device discovery",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableBluetooth();
+                            },
+                            child: const Text("Enable Bluetooth"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -381,7 +493,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Folder Sync - Client'),
+        title: const Text('PeerSync - Client'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         actions: [
