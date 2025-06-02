@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:folder_sync/screens/demo_home_screen.dart';
 import 'package:provider/provider.dart';
 
-import 'screens/home_screen.dart';
 import 'providers/p2p_sync_provider.dart';
 
 void main() {
