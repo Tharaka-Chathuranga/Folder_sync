@@ -45,7 +45,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     
     <application
-        android:label="folder_sync"
+        android:label="PeerSync"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

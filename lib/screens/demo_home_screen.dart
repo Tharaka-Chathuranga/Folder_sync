@@ -263,30 +263,30 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                 const SizedBox(height: 20),
 
                 // Info Section
-                Card(
-                  elevation: 2,
-                  color: Colors.orange.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.orange.shade700),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'This version uses flutter_p2p_connection plugin directly to avoid permission issues.',
-                            style: TextStyle(
-                              color: Colors.orange.shade700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                // Card(
+                //   elevation: 2,
+                //   color: Colors.orange.shade50,
+                //   child: Padding(
+                //     padding: const EdgeInsets.all(16.0),
+                //     child: Row(
+                //       children: [
+                //         Icon(Icons.info_outline, color: Colors.orange.shade700),
+                //         const SizedBox(width: 12),
+                //         Expanded(
+                //           child: Text(
+                //             'This version uses flutter_p2p_connection plugin directly to avoid permission issues.',
+                //             style: TextStyle(
+                //               color: Colors.orange.shade700,
+                //               fontSize: 14,
+                //             ),
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //   ),
+                // ),
                 
-                const SizedBox(height: 20),
+                // const SizedBox(height: 20),
               ],
             ),
           ),
