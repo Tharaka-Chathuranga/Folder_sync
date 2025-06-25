@@ -578,6 +578,58 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
               ],
             ], icon: Icons.wifi_tethering),
 
+
+            // File Syncing Area
+
+            
+            _buildSection("Syncing Files", [
+              StreamBuilder<List<P2pClientInfo>>(
+                stream: p2pInterface.streamClientList(),
+                builder: (context, snapshot) {
+                  var clientList = snapshot.data ?? [];
+                  clientList = clientList.where((c) => !c.isHost).toList();
+                  
+                  if (clientList.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.people_outline, color: Colors.grey.shade600),
+                          const SizedBox(width: 8),
+                          Text("No clients connected yet", style: TextStyle(color: Colors.grey.shade600)),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  return SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      itemCount: clientList.length,
+                      itemBuilder: (context, index) => Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue.shade100,
+                            child: Icon(Icons.person, color: Colors.blue.shade700),
+                          ),
+                          title: Text(clientList[index].username),
+                          subtitle: Text('ID: ${clientList[index].id}'),
+                          trailing: Icon(Icons.check_circle, color: Colors.green.shade600),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ], icon: Icons.people),
+
+
+
+
+
+
+
             // Connected Clients Section
             _buildSection("Connected Clients", [
               StreamBuilder<List<P2pClientInfo>>(
