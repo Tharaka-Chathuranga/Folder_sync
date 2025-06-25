@@ -11,6 +11,111 @@ import 'package:path/path.dart' as path;
 import 'files_library_screen.dart';
 import 'file_viewer_screen.dart';
 
+
+class Folder {
+  final String name;
+  final List<File> files;
+
+  Folder({required this.name, List<File>? files})
+      : files = files ?? [];
+}
+
+List<Folder> folders = [];
+
+
+void _createFolder() async {
+  final controller = TextEditingController();
+
+  await showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text("Create Folder"),
+      content: TextField(
+        controller: controller,
+        decoration: InputDecoration(hintText: "Folder name"),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancel")),
+        ElevatedButton(
+          onPressed: () {
+            final folderName = controller.text.trim();
+            if (folderName.isNotEmpty && !folders.any((f) => f.name == folderName)) {
+              setState(() {
+                folders.add(Folder(name: folderName));
+              });
+              _sendFolderCreated(folderName);
+            }
+            Navigator.pop(context);
+          },
+          child: Text("Create"),
+        ),
+      ],
+    ),
+  );
+}
+void _uploadFileToFolder(Folder folder) async {
+  final result = await FilePicker.platform.pickFiles();
+
+  if (result != null && result.files.single.path != null) {
+    final file = File(result.files.single.path!);
+    setState(() {
+      folder.files.add(file);
+    });
+    _sendFileToPeers(folder.name, file);
+  }
+}
+void _removeSharedFile(Folder folder, File file) async {
+  setState(() {
+    folder.files.remove(file);
+  });
+  _sendFileRemoval(folder.name, file.path.split('/').last);
+}
+
+void _sendFolderCreated(String folderName) {
+  final message = {
+    'action': 'create_folder',
+    'folder': folderName,
+    'section': 'Share Files',
+  };
+  sendMessageToPeers(message);
+}
+
+void _sendFileToPeers(String folderName, File file) async {
+  final fileBytes = await file.readAsBytes();
+  final fileName = file.path.split('/').last;
+
+  final header = {
+    'action': 'share_file',
+    'folder': folderName,
+    'file_name': fileName,
+    'section': 'Share Files',
+    'size': fileBytes.length
+  };
+
+  sendMessageToPeers(header, fileBytes);
+}
+
+void _sendFileRemoval(String folderName, String fileName) {
+  final message = {
+    'action': 'remove_file',
+    'folder': folderName,
+    'file_name': fileName,
+    'section': 'Share Files'
+  };
+  sendMessageToPeers(message);
+}
+
+if (message['action'] == 'create_folder') {
+  // Create folder locally
+}
+else if (message['action'] == 'share_file') {
+  // Save the file to matching folder
+}
+else if (message['action'] == 'remove_file') {
+  // Delete the file from that folder
+}
+
+
 class ImprovedClientScreen extends StatefulWidget {
   const ImprovedClientScreen({super.key});
 
@@ -691,6 +796,42 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                 ),
               ),
             ], icon: Icons.message),
+
+  _buildSection("Sync Files", [
+    ElevatedButton.icon(
+      icon: const Icon(Icons.create_new_folder),
+      label: const Text('Create Folder'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      onPressed: _createFolder,
+    ),
+    const SizedBox(height: 12),
+    ...folders.map((folder) => Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ExpansionTile(
+        title: Text(folder.name),
+        children: [
+          ...folder.files.map((file) => ListTile(
+                leading: Icon(Icons.insert_drive_file),
+                title: Text(file.path.split('/').last),
+                trailing: IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _removeSharedFile(folder, file),
+                ),
+              )),
+          ListTile(
+            leading: Icon(Icons.upload_file),
+            title: Text('Upload File'),
+            onTap: () => _uploadFileToFolder(folder),
+          ),
+        ],
+      ),
+    )),
+  ], icon: Icons.folder_shared);
+}
+
 
             // Send File Section
             _buildSection("Share Files", [
