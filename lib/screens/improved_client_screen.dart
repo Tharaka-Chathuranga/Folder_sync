@@ -838,7 +838,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
             ], icon: Icons.message),
 
             // Share Files Section (with folders)
-            _buildSection("Share Files", [
+            _buildSection("Sync Files", [
               _buildShareFilesSection(isConnected),
             ], icon: Icons.folder_shared),
 
