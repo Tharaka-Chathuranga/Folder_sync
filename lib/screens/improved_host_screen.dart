@@ -723,7 +723,7 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
             ], icon: Icons.wifi_tethering),
 
             // Share Files Section (with folders)
-            _buildSection("Share Files", [
+            _buildSection("Sync Files", [
               _buildShareFilesSection(isGroupActive),
             ], icon: Icons.folder_shared),
 
