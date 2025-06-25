@@ -712,8 +712,8 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
               ),
             ], icon: Icons.folder_shared),
 
-            // File Transfer Status Section
-            _buildSection("File Transfer Status", [
+            // Files sent Section
+            _buildSection("Files sent", [
               StreamBuilder<List<HostedFileInfo>>(
                 stream: p2pInterface.streamSentFilesInfo(),
                 builder: (context, snapshot) {
