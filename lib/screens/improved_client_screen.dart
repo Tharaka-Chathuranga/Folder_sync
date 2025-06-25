@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
@@ -10,111 +11,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'files_library_screen.dart';
 import 'file_viewer_screen.dart';
-
-
-class Folder {
-  final String name;
-  final List<File> files;
-
-  Folder({required this.name, List<File>? files})
-      : files = files ?? [];
-}
-
-List<Folder> folders = [];
-
-
-void _createFolder() async {
-  final controller = TextEditingController();
-
-  await showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text("Create Folder"),
-      content: TextField(
-        controller: controller,
-        decoration: InputDecoration(hintText: "Folder name"),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancel")),
-        ElevatedButton(
-          onPressed: () {
-            final folderName = controller.text.trim();
-            if (folderName.isNotEmpty && !folders.any((f) => f.name == folderName)) {
-              setState(() {
-                folders.add(Folder(name: folderName));
-              });
-              _sendFolderCreated(folderName);
-            }
-            Navigator.pop(context);
-          },
-          child: Text("Create"),
-        ),
-      ],
-    ),
-  );
-}
-void _uploadFileToFolder(Folder folder) async {
-  final result = await FilePicker.platform.pickFiles();
-
-  if (result != null && result.files.single.path != null) {
-    final file = File(result.files.single.path!);
-    setState(() {
-      folder.files.add(file);
-    });
-    _sendFileToPeers(folder.name, file);
-  }
-}
-void _removeSharedFile(Folder folder, File file) async {
-  setState(() {
-    folder.files.remove(file);
-  });
-  _sendFileRemoval(folder.name, file.path.split('/').last);
-}
-
-void _sendFolderCreated(String folderName) {
-  final message = {
-    'action': 'create_folder',
-    'folder': folderName,
-    'section': 'Share Files',
-  };
-  sendMessageToPeers(message);
-}
-
-void _sendFileToPeers(String folderName, File file) async {
-  final fileBytes = await file.readAsBytes();
-  final fileName = file.path.split('/').last;
-
-  final header = {
-    'action': 'share_file',
-    'folder': folderName,
-    'file_name': fileName,
-    'section': 'Share Files',
-    'size': fileBytes.length
-  };
-
-  sendMessageToPeers(header, fileBytes);
-}
-
-void _sendFileRemoval(String folderName, String fileName) {
-  final message = {
-    'action': 'remove_file',
-    'folder': folderName,
-    'file_name': fileName,
-    'section': 'Share Files'
-  };
-  sendMessageToPeers(message);
-}
-
-if (message['action'] == 'create_folder') {
-  // Create folder locally
-}
-else if (message['action'] == 'share_file') {
-  // Save the file to matching folder
-}
-else if (message['action'] == 'remove_file') {
-  // Delete the file from that folder
-}
-
 
 class ImprovedClientScreen extends StatefulWidget {
   const ImprovedClientScreen({super.key});
@@ -134,17 +30,23 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
   List<BleDiscoveredDevice> discoveredDevices = [];
   bool _isDiscovering = false;
 
+  // Folder sync state
+  Map<String, List<File>> sharedFolders = {}; // folderName -> files
+  String? currentFolder; // null means root
+
   @override
   void initState() {
     super.initState();
     p2pInterface = FlutterP2pClient();
     _initializeP2P();
+    // Listen for folder/file sync messages
+    receivedTextStream = p2pInterface.streamReceivedTexts().listen(_handleReceivedText);
   }
 
   void _initializeP2P() async {
     try {
       await p2pInterface.initialize();
-      
+
       hotspotStateStream = p2pInterface.streamHotspotState().listen((state) {
         setState(() {
           hotspotState = state;
@@ -154,10 +56,6 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
         } else {
           _showSnackBar('Disconnected from host', Colors.orange);
         }
-      });
-      
-      receivedTextStream = p2pInterface.streamReceivedTexts().listen((text) {
-        _showSnackBar('Received message: $text', Colors.blue);
       });
     } catch (e) {
       _showSnackBar('Failed to initialize P2P: $e', Colors.red);
@@ -378,19 +276,18 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   Future<void> _requestAllPermissions() async {
     _showSnackBar("Requesting permissions...", Colors.orange);
-    
+
     try {
       var storageGranted = await p2pInterface.askStoragePermission();
       var p2pGranted = await p2pInterface.askP2pPermissions();
       var bleGranted = await p2pInterface.askBluetoothPermissions();
-      
+
       String result = "Storage: ${storageGranted ? '✓' : '✗'}, "
-                     "P2P: ${p2pGranted ? '✓' : '✗'}, "
-                     "Bluetooth: ${bleGranted ? '✓' : '✗'}";
-      
+          "P2P: ${p2pGranted ? '✓' : '✗'}, "
+          "Bluetooth: ${bleGranted ? '✓' : '✗'}";
+
       Color color = (storageGranted && p2pGranted && bleGranted) ? Colors.green : Colors.orange;
       _showSnackBar(result, color);
-      
     } catch (e) {
       _showSnackBar("Permission request failed: $e", Colors.red);
     }
@@ -399,8 +296,8 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
   Future<void> _enableWifi() async {
     try {
       var wifiEnabled = await p2pInterface.enableWifiServices();
-      _showSnackBar("Wi-Fi ${wifiEnabled ? 'enabled' : 'failed to enable'}", 
-                   wifiEnabled ? Colors.green : Colors.red);
+      _showSnackBar("Wi-Fi ${wifiEnabled ? 'enabled' : 'failed to enable'}",
+          wifiEnabled ? Colors.green : Colors.red);
     } catch (e) {
       _showSnackBar("WiFi enable error: $e", Colors.red);
     }
@@ -409,8 +306,8 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
   Future<void> _enableLocation() async {
     try {
       var locationEnabled = await p2pInterface.enableLocationServices();
-      _showSnackBar("Location ${locationEnabled ? 'enabled' : 'failed to enable'}", 
-                   locationEnabled ? Colors.green : Colors.red);
+      _showSnackBar("Location ${locationEnabled ? 'enabled' : 'failed to enable'}",
+          locationEnabled ? Colors.green : Colors.red);
     } catch (e) {
       _showSnackBar("Location enable error: $e", Colors.red);
     }
@@ -419,8 +316,8 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
   Future<void> _enableBluetooth() async {
     try {
       var bluetoothEnabled = await p2pInterface.enableBluetoothServices();
-      _showSnackBar("Bluetooth ${bluetoothEnabled ? 'enabled' : 'failed to enable'}", 
-                   bluetoothEnabled ? Colors.green : Colors.red);
+      _showSnackBar("Bluetooth ${bluetoothEnabled ? 'enabled' : 'failed to enable'}",
+          bluetoothEnabled ? Colors.green : Colors.red);
     } catch (e) {
       _showSnackBar("Bluetooth enable error: $e", Colors.red);
     }
@@ -431,14 +328,14 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
       _showSnackBar('Already discovering peers', Colors.orange);
       return;
     }
-    
+
     setState(() {
       _isDiscovering = true;
       discoveredDevices.clear();
     });
-    
+
     _showSnackBar('Starting peer discovery...', Colors.blue);
-    
+
     try {
       await p2pInterface.startScan(
         (devices) {
@@ -469,7 +366,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   void _connectWithDevice(BleDiscoveredDevice device) async {
     _showSnackBar('Connecting to ${device.deviceName}...', Colors.blue);
-    
+
     try {
       await p2pInterface.connectWithDevice(device);
       _showSnackBar('Connected to ${device.deviceName}', Colors.green);
@@ -484,7 +381,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   void _connectWithCredentials(String ssid, String preSharedKey) async {
     _showSnackBar('Connecting with credentials...', Colors.blue);
-    
+
     try {
       await p2pInterface.connectWithCredentials(ssid, preSharedKey);
       _showSnackBar("Connected to $ssid", Colors.green);
@@ -495,7 +392,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   void _disconnect() async {
     _showSnackBar('Disconnecting...', Colors.orange);
-    
+
     try {
       await p2pInterface.disconnect();
       _showSnackBar("Disconnected successfully", Colors.green);
@@ -515,7 +412,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
       _showSnackBar('Not connected to any host', Colors.red);
       return;
     }
-    
+
     try {
       await p2pInterface.broadcastText(text);
       textEditingController.clear();
@@ -525,20 +422,163 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
     }
   }
 
+  // --- Folder Sync Logic ---
+
+  void _createFolderDialog() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create New Folder'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Folder Name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty && !sharedFolders.containsKey(name)) {
+                setState(() {
+                  sharedFolders[name] = [];
+                });
+                _broadcastFolderOperation('create', name);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _broadcastFolderOperation(String op, String folder, {String? fileName}) async {
+    final msg = jsonEncode({
+      'type': 'folder_op',
+      'op': op, // 'create', 'add_file', 'delete_file'
+      'folder': folder,
+      if (fileName != null) 'file': fileName,
+    });
+    await p2pInterface.broadcastText('[FOLDER_OP]$msg');
+  }
+
+  void _handleReceivedText(String text) {
+    if (text.startsWith('[FOLDER_OP]')) {
+      final msg = text.substring(11);
+      final Map<String, dynamic> data = jsonDecode(msg);
+      setState(() {
+        if (data['op'] == 'create') {
+          sharedFolders[data['folder']] ??= [];
+        } else if (data['op'] == 'add_file' && data['file'] != null) {
+          sharedFolders[data['folder']] ??= [];
+          // File transfer will be handled by the file transfer protocol
+        } else if (data['op'] == 'delete_file' && data['file'] != null) {
+          sharedFolders[data['folder']]?.removeWhere((f) => path.basename(f.path) == data['file']);
+        }
+      });
+    } else {
+      _showSnackBar('Received message: $text', Colors.blue);
+    }
+  }
+
+  Widget _buildShareFilesSection(bool isConnected) {
+    final folders = sharedFolders.keys.toList();
+    final files = currentFolder == null
+        ? []
+        : sharedFolders[currentFolder!] ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.create_new_folder),
+              label: const Text('Create Folder'),
+              onPressed: isConnected ? _createFolderDialog : null,
+            ),
+            if (currentFolder != null)
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to Folders',
+                onPressed: () => setState(() => currentFolder = null),
+              ),
+          ],
+        ),
+        if (currentFolder == null)
+          ...folders.map((folder) => ListTile(
+                leading: const Icon(Icons.folder),
+                title: Text(folder),
+                trailing: IconButton(
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: () => setState(() => currentFolder = folder),
+                ),
+              )),
+        if (currentFolder != null)
+          Column(
+            children: [
+              ...files.map((file) => ListTile(
+                    leading: const Icon(Icons.insert_drive_file),
+                    title: Text(path.basename(file.path)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () async {
+                            setState(() {
+                              sharedFolders[currentFolder!]!.remove(file);
+                            });
+                            _broadcastFolderOperation('delete_file', currentFolder!, fileName: path.basename(file.path));
+                            await file.delete();
+                          },
+                        ),
+                      ],
+                    ),
+                  )),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Add File'),
+                onPressed: isConnected
+                    ? () async {
+                        FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+                        if (result != null && result.files.single.path != null) {
+                          final file = File(result.files.single.path!);
+                          setState(() {
+                            sharedFolders[currentFolder!]!.add(file);
+                          });
+                          await p2pInterface.broadcastFile(file);
+                          _broadcastFolderOperation('add_file', currentFolder!, fileName: path.basename(file.path));
+                          _showSnackBar("Sending file: ${file.path.split('/').last}", Colors.blue);
+                        }
+                      }
+                    : null,
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
   void _sendFile() async {
     if (!(hotspotState?.isActive == true)) {
       _showSnackBar('Not connected to any host', Colors.red);
       return;
     }
-    
+
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
       );
 
       if (result != null && result.files.single.path != null) {
-        String path = result.files.single.path!;
-        File file = File(path);
+        String filePath = result.files.single.path!;
+        File file = File(filePath);
         if (await file.exists()) {
           await p2pInterface.broadcastFile(file);
           _showSnackBar("Sending file: ${file.path.split('/').last}", Colors.blue);
@@ -749,7 +789,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       ),
                     );
                   }
-                  
+
                   return SizedBox(
                     height: 120,
                     child: ListView.builder(
@@ -797,56 +837,9 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
               ),
             ], icon: Icons.message),
 
-  _buildSection("Sync Files", [
-    ElevatedButton.icon(
-      icon: const Icon(Icons.create_new_folder),
-      label: const Text('Create Folder'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-      ),
-      onPressed: _createFolder,
-    ),
-    const SizedBox(height: 12),
-    ...folders.map((folder) => Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ExpansionTile(
-        title: Text(folder.name),
-        children: [
-          ...folder.files.map((file) => ListTile(
-                leading: Icon(Icons.insert_drive_file),
-                title: Text(file.path.split('/').last),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _removeSharedFile(folder, file),
-                ),
-              )),
-          ListTile(
-            leading: Icon(Icons.upload_file),
-            title: Text('Upload File'),
-            onTap: () => _uploadFileToFolder(folder),
-          ),
-        ],
-      ),
-    )),
-  ], icon: Icons.folder_shared);
-}
-
-
-            // Send File Section
+            // Share Files Section (with folders)
             _buildSection("Share Files", [
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('Select & Share File'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: isConnected ? _sendFile : null,
-                ),
-              ),
+              _buildShareFilesSection(isConnected),
             ], icon: Icons.folder_shared),
 
             // Received Files Section
@@ -867,7 +860,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       ),
                     );
                   }
-                  
+
                   return SizedBox(
                     height: 200,
                     child: ListView.builder(
@@ -875,7 +868,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       itemBuilder: (context, index) {
                         var file = receivedFiles[index];
                         var percent = file.downloadProgressPercent.round();
-                        
+
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
@@ -913,7 +906,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       ),
                     );
                   }
-                  
+
                   return SizedBox(
                     height: 200,
                     child: ListView.builder(
@@ -967,13 +960,13 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
               // Get app's downloads directory
               final downloadsDir = await getApplicationDocumentsDirectory();
               final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
-              
+
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
                 syncDownloadsPath,
               );
-              _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
-                          downloaded ? Colors.green : Colors.red);
+              _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}",
+                  downloaded ? Colors.green : Colors.red);
             } catch (e) {
               _showSnackBar("Download failed: $e", Colors.red);
             }
@@ -1011,7 +1004,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
       final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
       final filePath = path.join(syncDownloadsPath, file.info.name);
       final downloadedFile = File(filePath);
-      
+
       if (await downloadedFile.exists()) {
         Navigator.push(
           context,
@@ -1114,4 +1107,4 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     controller?.dispose();
     super.dispose();
   }
-} 
+}
