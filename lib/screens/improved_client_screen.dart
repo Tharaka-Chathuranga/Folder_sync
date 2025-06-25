@@ -755,7 +755,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
             ], icon: Icons.cloud_download),
 
             // Sent Files Status Section
-            _buildSection("Sent Files Status", [
+            _buildSection("Sent Files", [
               StreamBuilder<List<HostedFileInfo>>(
                 stream: p2pInterface.streamSentFilesInfo(),
                 builder: (context, snapshot) {
