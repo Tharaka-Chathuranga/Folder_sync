@@ -72,29 +72,29 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
                 const SizedBox(height: 24),
 
                 // Key Features Section
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Key Features:',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildFeatureItem(Icons.wifi_tethering, 'Wi-Fi Direct Hotspot'),
-                        _buildFeatureItem(Icons.qr_code, 'QR Code Connection'),
-                        _buildFeatureItem(Icons.bluetooth, 'Bluetooth LE Discovery'),
-                        _buildFeatureItem(Icons.file_copy, 'Real-time File Transfer'),
-                        _buildFeatureItem(Icons.security, 'Built-in Permission Handling'),
-                      ],
-                    ),
-                  ),
-                ),
+                // Card(
+                //   elevation: 2,
+                //   child: Padding(
+                //     padding: const EdgeInsets.all(16.0),
+                //     child: Column(
+                //       crossAxisAlignment: CrossAxisAlignment.start,
+                //       children: [
+                //         Text(
+                //           'Key Features:',
+                //           style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                //             fontWeight: FontWeight.bold,
+                //           ),
+                //         ),
+                //         const SizedBox(height: 12),
+                //         _buildFeatureItem(Icons.wifi_tethering, 'Wi-Fi Direct Hotspot'),
+                //         _buildFeatureItem(Icons.qr_code, 'QR Code Connection'),
+                //         _buildFeatureItem(Icons.bluetooth, 'Bluetooth LE Discovery'),
+                //         _buildFeatureItem(Icons.file_copy, 'Real-time File Transfer'),
+                //         _buildFeatureItem(Icons.security, 'Built-in Permission Handling'),
+                //       ],
+                //     ),
+                //   ),
+                // ),
 
                 const SizedBox(height: 24),
 
