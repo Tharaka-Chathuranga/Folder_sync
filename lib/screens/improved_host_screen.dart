@@ -11,6 +11,24 @@ import 'package:path/path.dart' as path;
 import 'files_library_screen.dart';
 import 'file_viewer_screen.dart';
 
+
+class SyncingFileInfo {
+  final dynamic info; // HostedFileInfo or ReceivableFileInfo
+  final double progress;
+  final bool isSender;
+
+  SyncingFileInfo({required this.info, required this.progress, required this.isSender});
+}
+
+
+List<HostedFileInfo> allFiles = getAllSentFiles(); // or from existing stream
+List<HostedFileInfo> syncing = allFiles.where((f) => f.state == FileState.syncing).toList();
+
+List<ReceivableFileInfo> allFiles = getAllReceivedFiles();
+List<ReceivableFileInfo> syncing = allFiles.where((f) => f.state == FileState.syncing).toList();
+
+
+
 class ImprovedHostScreen extends StatefulWidget {
   const ImprovedHostScreen({super.key});
 
@@ -582,47 +600,108 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
             // File Syncing Area
 
             
+            // _buildSection("Syncing Files", [
+            //   StreamBuilder<List<P2pClientInfo>>(
+            //     stream: p2pInterface.streamClientList(),
+            //     builder: (context, snapshot) {
+            //       var clientList = snapshot.data ?? [];
+            //       clientList = clientList.where((c) => !c.isHost).toList();
+                  
+            //       if (clientList.isEmpty) {
+            //         return Container(
+            //           padding: const EdgeInsets.all(16),
+            //           child: Row(
+            //             children: [
+            //               Icon(Icons.people_outline, color: Colors.grey.shade600),
+            //               const SizedBox(width: 8),
+            //               Text("No clients connected yet", style: TextStyle(color: Colors.grey.shade600)),
+            //             ],
+            //           ),
+            //         );
+            //       }
+                  
+            //       return SizedBox(
+            //         height: 120,
+            //         child: ListView.builder(
+            //           itemCount: clientList.length,
+            //           itemBuilder: (context, index) => Card(
+            //             margin: const EdgeInsets.symmetric(vertical: 4),
+            //             child: ListTile(
+            //               leading: CircleAvatar(
+            //                 backgroundColor: Colors.blue.shade100,
+            //                 child: Icon(Icons.person, color: Colors.blue.shade700),
+            //               ),
+            //               title: Text(clientList[index].username),
+            //               subtitle: Text('ID: ${clientList[index].id}'),
+            //               trailing: Icon(Icons.check_circle, color: Colors.green.shade600),
+            //             ),
+            //           ),
+            //         ),
+            //       );
+            //     },
+            //   ),
+            // ], icon: Icons.people),
+
+
+
+
+            // File Syncing Section new
             _buildSection("Syncing Files", [
-              StreamBuilder<List<P2pClientInfo>>(
-                stream: p2pInterface.streamClientList(),
+              StreamBuilder<List<SyncingFileInfo>>(
+                stream: p2pInterface.streamSyncingFilesInfo(), // You need to implement this stream
                 builder: (context, snapshot) {
-                  var clientList = snapshot.data ?? [];
-                  clientList = clientList.where((c) => !c.isHost).toList();
-                  
-                  if (clientList.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(Icons.people_outline, color: Colors.grey.shade600),
-                          const SizedBox(width: 8),
-                          Text("No clients connected yet", style: TextStyle(color: Colors.grey.shade600)),
-                        ],
-                      ),
-                    );
-                  }
-                  
-                  return SizedBox(
-                    height: 120,
-                    child: ListView.builder(
-                      itemCount: clientList.length,
-                      itemBuilder: (context, index) => Card(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue.shade100,
-                            child: Icon(Icons.person, color: Colors.blue.shade700),
-                          ),
-                          title: Text(clientList[index].username),
-                          subtitle: Text('ID: ${clientList[index].id}'),
-                          trailing: Icon(Icons.check_circle, color: Colors.green.shade600),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                  var syncingFiles = snapshot.data ?? [];
+
+                  if (syncingFiles.isEmpty) {
+                   return Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                    children: [
+                    Icon(Icons.sync, color: Colors.grey.shade600),
+                    const SizedBox(width: 8),
+                    Text("No syncing files", style: TextStyle(color: Colors.grey.shade600)),
+                    ],
               ),
-            ], icon: Icons.people),
+         );
+      }
+
+      return SizedBox(
+        height: 200,
+        child: ListView.builder(
+          itemCount: syncingFiles.length,
+          itemBuilder: (context, index) {
+            final file = syncingFiles[index];
+
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.orange.shade100,
+                  child: Icon(Icons.sync, color: Colors.orange.shade700),
+                ),
+                title: Text(file.info.name),
+                subtitle: Text("Status: Syncing, ${file.progress.round()}%"),
+                trailing: file.isSender
+                    ? ElevatedButton(
+                        onPressed: () {
+                          p2pInterface.cancelSync(file.info); // Implement this
+                        },
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text("Un-sync"),
+                      )
+                    : null,
+              ),
+            );
+          },
+        ),
+      );
+    },
+  ),
+], icon: Icons.sync),
+
 
 
 
@@ -712,8 +791,8 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
               ),
             ], icon: Icons.folder_shared),
 
-            // File Transfer Status Section
-            _buildSection("File Transfer Status", [
+            // Files sent Section
+            _buildSection("Files sent", [
               StreamBuilder<List<HostedFileInfo>>(
                 stream: p2pInterface.streamSentFilesInfo(),
                 builder: (context, snapshot) {
