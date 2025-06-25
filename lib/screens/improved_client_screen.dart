@@ -3,8 +3,13 @@ import 'dart:io';
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_p2p_connection/flutter_p2p_connection.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'files_library_screen.dart';
+import 'file_viewer_screen.dart';
 
 class ImprovedClientScreen extends StatefulWidget {
   const ImprovedClientScreen({super.key});
@@ -84,59 +89,171 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.security, color: Colors.orange),
-                    title: const Text("Request Permissions"),
-                    subtitle: const Text("Grant storage, location & WiFi permissions"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _requestAllPermissions();
-                      },
-                      child: const Text("Grant"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.security, color: Colors.orange),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Request Permissions",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Grant storage, location & WiFi permissions",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _requestAllPermissions();
+                            },
+                            child: const Text("Grant Permissions"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.wifi, color: Colors.blue),
-                    title: const Text("Enable Wi-Fi"),
-                    subtitle: const Text("Required for connecting to hosts"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableWifi();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.wifi, color: Colors.blue),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Wi-Fi",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for connecting to hosts",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableWifi();
+                            },
+                            child: const Text("Enable Wi-Fi"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.location_on, color: Colors.green),
-                    title: const Text("Enable Location"),
-                    subtitle: const Text("Required for WiFi Direct"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableLocation();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Colors.green),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Location",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for WiFi Direct",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableLocation();
+                            },
+                            child: const Text("Enable Location"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.bluetooth, color: Colors.indigo),
-                    title: const Text("Enable Bluetooth"),
-                    subtitle: const Text("Required for device discovery"),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await _enableBluetooth();
-                      },
-                      child: const Text("Enable"),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.bluetooth, color: Colors.indigo),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Enable Bluetooth",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Text(
+                                    "Required for device discovery",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(context).pop();
+                              await _enableBluetooth();
+                            },
+                            child: const Text("Enable Bluetooth"),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -376,10 +493,22 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Folder Sync - Client'),
+        title: const Text('PeerSync - Client'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FilesLibraryScreen(),
+                ),
+              );
+            },
+            tooltip: "Files Library",
+          ),
           IconButton(
             icon: const Icon(Icons.settings_applications),
             onPressed: _showPermissionsDialog,
@@ -694,9 +823,13 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
           onPressed: () async {
             _showSnackBar("Downloading ${file.info.name}...", Colors.blue);
             try {
+              // Get app's downloads directory
+              final downloadsDir = await getApplicationDocumentsDirectory();
+              final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
-                '/storage/emulated/0/Download/',
+                syncDownloadsPath,
               );
               _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
                           downloaded ? Colors.green : Colors.red);
@@ -713,9 +846,46 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
           child: CircularProgressIndicator(strokeWidth: 2),
         );
       case ReceivableFileState.completed:
-        return Icon(Icons.check_circle, color: Colors.green.shade600);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.visibility, color: Colors.blue),
+              onPressed: () async {
+                await _viewDownloadedFile(file);
+              },
+              tooltip: 'View File',
+            ),
+            Icon(Icons.check_circle, color: Colors.green.shade600),
+          ],
+        );
       default:
         return Icon(Icons.error, color: Colors.red.shade600);
+    }
+  }
+
+  Future<void> _viewDownloadedFile(ReceivableFileInfo file) async {
+    try {
+      final downloadsDir = await getApplicationDocumentsDirectory();
+      final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+      final filePath = path.join(syncDownloadsPath, file.info.name);
+      final downloadedFile = File(filePath);
+      
+      if (await downloadedFile.exists()) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FileViewerScreen(
+              file: downloadedFile,
+              fileName: file.info.name,
+            ),
+          ),
+        );
+      } else {
+        _showSnackBar("File not found. Please download it first.", Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar("Error opening file: $e", Colors.red);
     }
   }
 }
