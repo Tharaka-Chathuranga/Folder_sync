@@ -295,16 +295,16 @@ class _DemoHomeScreenState extends State<DemoHomeScreen> {
     );
   }
 
-  Widget _buildFeatureItem(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-          const SizedBox(width: 12),
-          Text(text, style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
+  // Widget _buildFeatureItem(IconData icon, String text) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 4),
+  //     child: Row(
+  //       children: [
+  //         Icon(icon, size: 20, color: Theme.of(context).primaryColor),
+  //         const SizedBox(width: 12),
+  //         Text(text, style: Theme.of(context).textTheme.bodyMedium),
+  //       ],
+  //     ),
+  //   );
+  // }
 } 
