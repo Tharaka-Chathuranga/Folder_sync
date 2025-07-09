@@ -1,4 +1,3 @@
-group 'net.touchcapture.qr.flutterqr'
 version '1.0-SNAPSHOT'
 
 buildscript {
@@ -28,6 +27,7 @@ android {
     compileSdkVersion 32
     
     // Add namespace
+    
     namespace 'net.touchcapture.qr.flutterqr'
 
     sourceSets {

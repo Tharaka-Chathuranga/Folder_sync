@@ -443,7 +443,7 @@ class P2PSyncProvider with ChangeNotifier {
       
       debugPrint("Connection attempt with credentials to $ssid successful");
       return true;
-    } on TimeoutException catch (e) {
+    } on TimeoutException {
       _setError('Connection timeout: Failed to connect to $ssid within 2 minutes. Please check if the host is nearby and broadcasting.');
       return false;
     } catch (e) {

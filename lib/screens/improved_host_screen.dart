@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'files_library_screen.dart';
 import 'file_viewer_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ImprovedHostScreen extends StatefulWidget {
   const ImprovedHostScreen({super.key});
@@ -27,11 +28,50 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
 
   HotspotHostState? hotspotState;
 
+  // Folder sync state
+  String? selectedDirectory;
+  List<FileSystemEntity> folderFiles = [];
+
   @override
   void initState() {
     super.initState();
     p2pInterface = FlutterP2pHost();
     _initializeP2P();
+    _listenForSyncRequests();
+  }
+
+  void _listenForSyncRequests() {
+    receivedTextStream = p2pInterface.streamReceivedTexts().listen((text) async {
+      if (text.startsWith("SYNC_FILE_LIST:")) {
+        try {
+          final theirList = List<String>.from(
+            (text.substring("SYNC_FILE_LIST:".length)).split("|"),
+          );
+          final myFiles = folderFiles
+              .where((f) => FileSystemEntity.isFileSync(f.path))
+              .map((f) => path.basename(f.path))
+              .toList();
+          // Find files they are missing
+          final missing = myFiles.where((f) => !theirList.contains(f));
+          for (final fileName in missing) {
+            FileSystemEntity? fileToSend;
+            try {
+              fileToSend = folderFiles.firstWhere(
+                (f) => path.basename(f.path) == fileName,
+              );
+            } catch (_) {
+              fileToSend = null;
+            }
+            if (fileToSend != null && FileSystemEntity.isFileSync(fileToSend.path)) {
+              await p2pInterface.broadcastFile(File(fileToSend.path));
+              _showSnackBar('Sent missing file: $fileName', Colors.blue);
+            }
+          }
+        } catch (e) {
+          _showSnackBar('Sync receive error: $e', Colors.red);
+        }
+      }
+    });
   }
 
   void _initializeP2P() async {
@@ -483,6 +523,57 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
+            // Folder Selection Section
+            _buildSection("Selected Folder", [
+              Row(
+                children: [
+                  // Expanded(
+                  //   child: Text(
+                  //     // selectedDirectory ?? 'No folder selected',
+                  //     style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  //     overflow: TextOverflow.ellipsis,
+                  //   ),
+                  // ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.folder),
+                    label: const Text('Pick Folder'),
+                    onPressed: _pickFolder,
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.sync),
+                    label: const Text('Sync'),
+                    onPressed: isGroupActive && selectedDirectory != null ? _syncFolderWithPeers : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (selectedDirectory != null)
+                folderFiles.isEmpty
+                  ? const Text('No files in this folder.', style: TextStyle(color: Colors.grey))
+                  : SizedBox(
+                      height: 150,
+                      child: ListView.builder(
+                        itemCount: folderFiles.length,
+                        itemBuilder: (context, index) {
+                          final file = folderFiles[index];
+                          return ListTile(
+                            leading: Icon(
+                              FileSystemEntity.isDirectorySync(file.path)
+                                ? Icons.folder
+                                : Icons.insert_drive_file,
+                              color: FileSystemEntity.isDirectorySync(file.path)
+                                ? Colors.amber
+                                : Colors.blue,
+                            ),
+                            title: Text(path.basename(file.path)),
+                          );
+                        },
+                      ),
+                    ),
+            ], icon: Icons.folder),
+
             // Hotspot Status Section
             _buildSection("Hotspot Control", [
               if (isGroupActive) ...[
@@ -841,4 +932,53 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
       _showSnackBar("Error opening file: $e", Colors.red);
     }
   }
-} 
+
+  Future<void> _pickFolder() async {
+    try {
+      // Request storage permission
+      if (!await Permission.storage.request().isGranted) {
+        _showSnackBar('Storage permission denied', Colors.red);
+        return;
+      }
+      if (Platform.isAndroid && (await Permission.manageExternalStorage.status).isDenied) {
+        await Permission.manageExternalStorage.request();
+      }
+      String? directoryPath = await FilePicker.platform.getDirectoryPath();
+      if (directoryPath != null) {
+        final dir = Directory(directoryPath);
+        final files = await dir.list().toList();
+        setState(() {
+          selectedDirectory = directoryPath;
+          folderFiles = files;
+        });
+        _showSnackBar('Selected folder: $directoryPath', Colors.blue);
+      } else {
+        _showSnackBar('Folder selection cancelled', Colors.orange);
+      }
+    } catch (e) {
+      _showSnackBar('Error picking folder: $e', Colors.red);
+    }
+  }
+
+  Future<void> _syncFolderWithPeers() async {
+    if (selectedDirectory == null) {
+      _showSnackBar('No folder selected to sync', Colors.red);
+      return;
+    }
+    if (!p2pInterface.isGroupCreated) {
+      _showSnackBar('Group not created', Colors.red);
+      return;
+    }
+    try {
+      final fileNames = folderFiles
+          .where((f) => FileSystemEntity.isFileSync(f.path))
+          .map((f) => path.basename(f.path))
+          .toList();
+      // Send file list to peers
+      await p2pInterface.broadcastText('SYNC_FILE_LIST:' + fileNames.join('|'));
+      _showSnackBar('Sync request sent to peers', Colors.blue);
+    } catch (e) {
+      _showSnackBar('Sync error: $e', Colors.red);
+    }
+  }
+}

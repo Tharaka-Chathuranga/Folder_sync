@@ -18,8 +18,6 @@ subprojects {
         // Suppress compiler option deprecation warnings (e.g. -Xlint:-options)
         options.compilerArgs.add("-Xlint:-options")
     }
-}
-subprojects {
     project.evaluationDependsOn(":app")
 }
 
