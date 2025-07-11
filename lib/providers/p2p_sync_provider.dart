@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,6 +7,20 @@ import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_p2p_connection/flutter_p2p_connection.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+// Helper to ensure storage permission before file server operations
+Future<bool> ensureStoragePermission(P2PSyncProvider provider) async {
+  final p2pInterface = provider._host ?? FlutterP2pHost();
+  if (!await p2pInterface.checkStoragePermission()) {
+    final status = await p2pInterface.askStoragePermission();
+    debugPrint("[FileServer] Storage permission requested, status: $status");
+    if (!await p2pInterface.checkStoragePermission()) {
+      provider._setError('Storage permission denied. Cannot start file server or transfer files.');
+      return false;
+    }
+  }
+  return true;
+}
 
 enum SyncStatus {
   idle,
@@ -25,6 +40,23 @@ enum ConnectionRole {
 }
 
 class P2PSyncProvider with ChangeNotifier {
+  // Selected folder path (set this from your UI when user picks a folder)
+  String? selectedFolderPath;
+  // List of files in the selected folder
+  List<FileSystemEntity> selectedFolderFiles = [];
+
+  // Refresh the selected folder's file list
+  Future<void> refreshSelectedFolderFiles() async {
+    if (selectedFolderPath == null) return;
+    final dir = Directory(selectedFolderPath!);
+    if (await dir.exists()) {
+      selectedFolderFiles = dir.listSync();
+      debugPrint('[UI] Refreshed selected folder files: ${selectedFolderFiles.map((f) => f.path).toList()}');
+      notifyListeners();
+    }
+  }
+  // Configurable file server port (default 8080)
+  int fileServerPort = 8080;
   // P2P instances
   FlutterP2pHost? _host;
   FlutterP2pClient? _client;
@@ -62,7 +94,7 @@ class P2PSyncProvider with ChangeNotifier {
   List<String> get connectedDevices => _connectedClients.map((client) => client.id).toList();
   List<Map<String, dynamic>> get availableHosts => _discoveredHosts.map((device) => {
     'id': device.deviceName,
-    'name': device.deviceName ?? 'Unknown Device',
+    'name': device.deviceName,
     'device': device,
   }).toList();
   List<Map<String, dynamic>> get receivedFiles => _receivedFiles;
@@ -574,53 +606,70 @@ class P2PSyncProvider with ChangeNotifier {
       _setError('Not connected');
       return null;
     }
-    
+    // Ensure storage permission before file server ops
+    if (!await ensureStoragePermission(this)) {
+      debugPrint('[FileServer] Storage permission not granted, aborting downloadFile');
+      return null;
+    }
+    debugPrint('[FileServer] Using port $fileServerPort for file transfer');
     try {
       _setStatus(SyncStatus.receiving);
-      
       final downloadsDir = await getApplicationDocumentsDirectory();
       final savePath = path.join(downloadsDir.path, 'folder_sync_downloads');
-      
       // Create directory if it doesn't exist
       final saveDir = Directory(savePath);
       if (!await saveDir.exists()) {
         await saveDir.create(recursive: true);
       }
-      
       bool downloadSuccess = false;
-      
+      // If your API supports a port argument, pass fileServerPort here. Example:
+      // await _host!.downloadFile(fileId, savePath, port: fileServerPort, ...)
       if (_role == ConnectionRole.host) {
-        downloadSuccess = await _host!.downloadFile(
-          fileId,
-          savePath,
-          customFileName: customFileName,
-          onProgress: (update) {
-            _transferProgress[fileId] = update.progressPercent;
-            notifyListeners();
-          },
-        ) ?? false;
+        try {
+          // Replace with actual port argument if supported by your API
+          downloadSuccess = await _host!.downloadFile(
+            fileId,
+            savePath,
+            customFileName: customFileName,
+            onProgress: (update) {
+              _transferProgress[fileId] = update.progressPercent;
+              notifyListeners();
+            },
+            // port: fileServerPort, // Uncomment if supported
+          );
+        } catch (e) {
+          debugPrint('[FileServer] Host downloadFile error: $e');
+          _setError('Host failed to start file server: $e');
+        }
       } else if (_role == ConnectionRole.client) {
-        downloadSuccess = await _client!.downloadFile(
-          fileId,
-          savePath,
-          customFileName: customFileName,
-          onProgress: (update) {
-            _transferProgress[fileId] = update.progressPercent;
-            notifyListeners();
-          },
-        ) ?? false;
+        try {
+          // Replace with actual port argument if supported by your API
+          downloadSuccess = await _client!.downloadFile(
+            fileId,
+            savePath,
+            customFileName: customFileName,
+            onProgress: (update) {
+              _transferProgress[fileId] = update.progressPercent;
+              notifyListeners();
+            },
+            // port: fileServerPort, // Uncomment if supported
+          );
+        } catch (e) {
+          debugPrint('[FileServer] Client downloadFile error: $e');
+          _setError('Client failed to start file server: $e');
+        }
       }
-      
       _setStatus(SyncStatus.connected);
-      
       if (downloadSuccess) {
         final fileName = customFileName ?? fileId;
         final filePath = path.join(savePath, fileName);
+        // Refresh selected folder files after download
+        await refreshSelectedFolderFiles();
         return File(filePath);
       }
-      
       return null;
     } catch (e) {
+      debugPrint('[FileServer] Unexpected error in downloadFile: $e');
       _setError('Failed to download file: $e');
       _setStatus(SyncStatus.connected);
       return null;

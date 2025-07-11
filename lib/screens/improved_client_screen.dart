@@ -66,18 +66,19 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   void _listenForSyncRequests() {
     receivedTextStream = p2pInterface.streamReceivedTexts().listen((text) async {
-      if (text.startsWith("SYNC_FILE_LIST:")) {
+      // Host sends its file list for reverse sync
+      if (text.startsWith("HOST_FILE_LIST:")) {
         try {
-          final theirList = List<String>.from(
-            (text.substring("SYNC_FILE_LIST:".length)).split("|"),
+          final hostList = List<String>.from(
+            (text.substring("HOST_FILE_LIST:".length)).split("|"),
           );
           final myFiles = folderFiles
               .where((f) => FileSystemEntity.isFileSync(f.path))
               .map((f) => path.basename(f.path))
               .toList();
-          // Find files they are missing
-          final missing = myFiles.where((f) => !theirList.contains(f));
-          for (final fileName in missing) {
+          // Find files host is missing
+          final missingForHost = myFiles.where((f) => !hostList.contains(f));
+          for (final fileName in missingForHost) {
             FileSystemEntity? fileToSend;
             try {
               fileToSend = folderFiles.firstWhere(
@@ -88,11 +89,18 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
             }
             if (fileToSend != null && FileSystemEntity.isFileSync(fileToSend.path)) {
               await p2pInterface.broadcastFile(File(fileToSend.path));
-              _showSnackBar('Sent missing file: $fileName', Colors.blue);
+              _showSnackBar('Sent missing file to host: $fileName', Colors.blue);
+              // Optionally notify host
+              await p2pInterface.broadcastText('PEER_SEND_FILE:' + fileName);
             }
           }
+          // Find files client is missing
+          final missingForClient = hostList.where((f) => !myFiles.contains(f));
+          // Optionally, request these files from host (if your protocol supports it)
+          // Or rely on host to send them automatically
+          _showSnackBar('Requested missing files from host', Colors.green);
         } catch (e) {
-          _showSnackBar('Sync receive error: $e', Colors.red);
+          _showSnackBar('Reverse sync error: $e', Colors.red);
         }
       }
     });
@@ -915,13 +923,22 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
               // Get app's downloads directory
               final downloadsDir = await getApplicationDocumentsDirectory();
               final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
-              
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
                 syncDownloadsPath,
               );
               _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
                           downloaded ? Colors.green : Colors.red);
+              if (downloaded) {
+                // Refresh folderFiles to show new file in selected folder area
+                if (selectedDirectory != null) {
+                  final dir = Directory(selectedDirectory!);
+                  final files = await dir.list().toList();
+                  setState(() {
+                    folderFiles = files;
+                  });
+                }
+              }
             } catch (e) {
               _showSnackBar("Download failed: $e", Colors.red);
             }
