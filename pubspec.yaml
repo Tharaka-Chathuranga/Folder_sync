@@ -23,6 +23,8 @@ dependencies:
   nearby_connections: ^4.3.0
   connectivity_plus: ^6.0.1
 
+  location: ^6.0.2
+
 
   app_settings: ^6.1.1
 
