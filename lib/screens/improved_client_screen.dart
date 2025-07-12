@@ -824,7 +824,50 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       ),
                     );
                   }
-                  
+
+                  // Automatically download files in idle state, but do not overwrite existing files
+                  for (var file in receivedFiles) {
+                    if (file.state == ReceivableFileState.idle) {
+                      String downloadPath = selectedDirectory ?? '';
+                      String targetFolder;
+                      if (downloadPath.isEmpty) {
+                        getApplicationDocumentsDirectory().then((downloadsDir) {
+                          targetFolder = path.join(downloadsDir.path, 'folder_sync_downloads');
+                          final targetFile = File(path.join(targetFolder, file.info.name));
+                          targetFile.exists().then((exists) {
+                            if (!exists) {
+                              p2pInterface.downloadFile(file.info.id, targetFolder).then((downloaded) async {
+                                if (downloaded && selectedDirectory != null) {
+                                  final dir = Directory(selectedDirectory!);
+                                  final files = await dir.list().toList();
+                                  setState(() {
+                                    folderFiles = files;
+                                  });
+                                }
+                              });
+                            }
+                          });
+                        });
+                      } else {
+                        targetFolder = downloadPath;
+                        final targetFile = File(path.join(targetFolder, file.info.name));
+                        targetFile.exists().then((exists) {
+                          if (!exists) {
+                            p2pInterface.downloadFile(file.info.id, targetFolder).then((downloaded) async {
+                              if (downloaded && selectedDirectory != null) {
+                                final dir = Directory(selectedDirectory!);
+                                final files = await dir.list().toList();
+                                setState(() {
+                                  folderFiles = files;
+                                });
+                              }
+                            });
+                          }
+                        });
+                      }
+                    }
+                  }
+
                   return SizedBox(
                     height: 200,
                     child: ListView.builder(
@@ -832,7 +875,6 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                       itemBuilder: (context, index) {
                         var file = receivedFiles[index];
                         var percent = file.downloadProgressPercent.round();
-                        
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
@@ -842,7 +884,27 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
                             ),
                             title: Text(file.info.name),
                             subtitle: Text("Status: ${file.state.name}, $percent%"),
-                            trailing: _buildFileActionButton(file),
+                            trailing: file.state == ReceivableFileState.completed
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.visibility, color: Colors.blue),
+                                      onPressed: () async {
+                                        await _viewDownloadedFile(file);
+                                      },
+                                      tooltip: 'View File',
+                                    ),
+                                    Icon(Icons.check_circle, color: Colors.green.shade600),
+                                  ],
+                                )
+                              : (file.state == ReceivableFileState.downloading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : null),
                           ),
                         );
                       },
@@ -913,67 +975,7 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
     );
   }
 
-  Widget _buildFileActionButton(ReceivableFileInfo file) {
-    switch (file.state) {
-      case ReceivableFileState.idle:
-        return ElevatedButton(
-          onPressed: () async {
-            _showSnackBar("Downloading ${file.info.name}...", Colors.blue);
-            try {
-              // Download to the selected folder if available, else fallback to app documents
-              String downloadPath;
-              if (selectedDirectory != null) {
-                downloadPath = selectedDirectory!;
-              } else {
-                final downloadsDir = await getApplicationDocumentsDirectory();
-                downloadPath = path.join(downloadsDir.path, 'folder_sync_downloads');
-              }
-              var downloaded = await p2pInterface.downloadFile(
-                file.info.id,
-                downloadPath,
-              );
-              _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
-                          downloaded ? Colors.green : Colors.red);
-              if (downloaded) {
-                // Refresh folderFiles to show new file in selected folder area
-                if (selectedDirectory != null) {
-                  final dir = Directory(selectedDirectory!);
-                  final files = await dir.list().toList();
-                  setState(() {
-                    folderFiles = files;
-                  });
-                }
-              }
-            } catch (e) {
-              _showSnackBar("Download failed: $e", Colors.red);
-            }
-          },
-          child: const Text('Download'),
-        );
-      case ReceivableFileState.downloading:
-        return const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
-      case ReceivableFileState.completed:
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.visibility, color: Colors.blue),
-              onPressed: () async {
-                await _viewDownloadedFile(file);
-              },
-              tooltip: 'View File',
-            ),
-            Icon(Icons.check_circle, color: Colors.green.shade600),
-          ],
-        );
-      default:
-        return Icon(Icons.error, color: Colors.red.shade600);
-    }
-  }
+  // ...existing code...
 
   Future<void> _viewDownloadedFile(ReceivableFileInfo file) async {
     try {
