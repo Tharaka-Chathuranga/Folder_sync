@@ -920,12 +920,17 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
           onPressed: () async {
             _showSnackBar("Downloading ${file.info.name}...", Colors.blue);
             try {
-              // Get app's downloads directory
-              final downloadsDir = await getApplicationDocumentsDirectory();
-              final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              // Download to the selected folder if available, else fallback to app documents
+              String downloadPath;
+              if (selectedDirectory != null) {
+                downloadPath = selectedDirectory!;
+              } else {
+                final downloadsDir = await getApplicationDocumentsDirectory();
+                downloadPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              }
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
-                syncDownloadsPath,
+                downloadPath,
               );
               _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
                           downloaded ? Colors.green : Colors.red);
@@ -972,11 +977,15 @@ class _ImprovedClientScreenState extends State<ImprovedClientScreen> {
 
   Future<void> _viewDownloadedFile(ReceivableFileInfo file) async {
     try {
-      final downloadsDir = await getApplicationDocumentsDirectory();
-      final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
-      final filePath = path.join(syncDownloadsPath, file.info.name);
+      String folderPath;
+      if (selectedDirectory != null) {
+        folderPath = selectedDirectory!;
+      } else {
+        final downloadsDir = await getApplicationDocumentsDirectory();
+        folderPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+      }
+      final filePath = path.join(folderPath, file.info.name);
       final downloadedFile = File(filePath);
-      
       if (await downloadedFile.exists()) {
         Navigator.push(
           context,

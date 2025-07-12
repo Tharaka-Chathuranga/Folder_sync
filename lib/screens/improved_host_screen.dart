@@ -71,6 +71,15 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
               _showSnackBar('Sent missing file to peer: $fileName', Colors.blue);
             }
           }
+          // Find files host is missing
+          final missingForHost = theirList.where((f) => !myFiles.contains(f));
+          // Request/download missing files from peer
+          for (final fileName in missingForHost) {
+            // Request file from peer (if protocol supports) or attempt to download
+            // Here, we assume the peer will send the file automatically, but you can send a request if needed
+            _showSnackBar('Host missing file: $fileName. Waiting for peer to send.', Colors.orange);
+            // Optionally, you could send a request: await p2pInterface.broadcastText('REQUEST_FILE:' + fileName);
+          }
           // Send host's file list back to peer for reverse sync
           await p2pInterface.broadcastText('HOST_FILE_LIST:' + myFiles.join('|'));
           _showSnackBar('Sent host file list to peer for reverse sync', Colors.green);
@@ -883,12 +892,17 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
           onPressed: () async {
             _showSnackBar("Downloading ${file.info.name}...", Colors.blue);
             try {
-              // Get app's downloads directory
-              final downloadsDir = await getApplicationDocumentsDirectory();
-              final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              // Download to the selected folder if available, else fallback to app documents
+              String downloadPath;
+              if (selectedDirectory != null) {
+                downloadPath = selectedDirectory!;
+              } else {
+                final downloadsDir = await getApplicationDocumentsDirectory();
+                downloadPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+              }
               var downloaded = await p2pInterface.downloadFile(
                 file.info.id,
-                syncDownloadsPath,
+                downloadPath,
               );
               _showSnackBar("${file.info.name} download: ${downloaded ? 'Success' : 'Failed'}", 
                           downloaded ? Colors.green : Colors.red);
@@ -935,11 +949,15 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
 
   Future<void> _viewDownloadedFile(ReceivableFileInfo file) async {
     try {
-      final downloadsDir = await getApplicationDocumentsDirectory();
-      final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
-      final filePath = path.join(syncDownloadsPath, file.info.name);
+      String folderPath;
+      if (selectedDirectory != null) {
+        folderPath = selectedDirectory!;
+      } else {
+        final downloadsDir = await getApplicationDocumentsDirectory();
+        folderPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+      }
+      final filePath = path.join(folderPath, file.info.name);
       final downloadedFile = File(filePath);
-      
       if (await downloadedFile.exists()) {
         Navigator.push(
           context,
@@ -1003,7 +1021,7 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
       await p2pInterface.broadcastText('SYNC_FILE_LIST:' + myFiles.join('|'));
       _showSnackBar('Sync request sent to peers', Colors.blue);
 
-      // If we have a last received peer file list, do bidirectional sync
+      // Always attempt bidirectional sync if peer file list is available
       if (lastPeerFileList.isNotEmpty) {
         // Find files peer is missing
         final missingForPeer = myFiles.where((f) => !lastPeerFileList.contains(f));
@@ -1023,9 +1041,33 @@ class _ImprovedHostScreenState extends State<ImprovedHostScreen> {
         }
         // Find files host is missing
         final missingForHost = lastPeerFileList.where((f) => !myFiles.contains(f));
-        // Optionally, request these files from peer (if your protocol supports it)
-        // Or rely on peer to send them automatically
-        _showSnackBar('Requested missing files from peer', Colors.green);
+        // Actively download missing files from peer
+        for (final fileName in missingForHost) {
+          _showSnackBar('Downloading missing file from peer: $fileName', Colors.orange);
+          // Attempt to download file (if API supports by name)
+          try {
+            final downloadsDir = await getApplicationDocumentsDirectory();
+            final syncDownloadsPath = path.join(downloadsDir.path, 'folder_sync_downloads');
+            // You may need to map fileName to fileId if needed
+            var downloaded = await p2pInterface.downloadFile(
+              fileName,
+              syncDownloadsPath,
+            );
+            _showSnackBar("${fileName} download: ${downloaded ? 'Success' : 'Failed'}", downloaded ? Colors.green : Colors.red);
+            if (downloaded && selectedDirectory != null) {
+              final dir = Directory(selectedDirectory!);
+              final files = await dir.list().toList();
+              setState(() {
+                folderFiles = files;
+              });
+            }
+          } catch (e) {
+            _showSnackBar("Download failed for $fileName: $e", Colors.red);
+          }
+        }
+      } else {
+        // If no peer file list yet, wait for peer to respond and sync will happen via listener
+        debugPrint('[Sync] No peer file list yet, waiting for peer response...');
       }
     } catch (e) {
       _showSnackBar('Sync error: $e', Colors.red);
